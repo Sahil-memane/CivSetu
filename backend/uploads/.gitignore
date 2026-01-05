@@ -1,0 +1,19 @@
+# uploads/
+# This directory stores user-uploaded files locally
+# Files are organized by issue submission
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
+*.mp4
+*.avi
+*.mov
+*.pdf
+*.doc
+*.docx
+*.mp3
+*.wav
+*.ogg
+*.m4a
+*.webm
