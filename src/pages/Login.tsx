@@ -1,15 +1,56 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Navbar } from "@/components/layout/Navbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MapPin, Mail, Phone, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { MapPin, Mail, Phone, Lock, Eye, EyeOff, ArrowRight, User, Building2, Loader2 } from "lucide-react";
+import { useAuth, UserRole } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loginMethod, setLoginMethod] = useState<"email" | "phone">("email");
+  const [role, setRole] = useState<UserRole>("citizen");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Form fields
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+  
+  const { login } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const identifier = loginMethod === "email" ? email : `+91${phone}`;
+    
+    if (!identifier || !password) {
+      toast({ 
+        title: "Missing Information", 
+        description: "Please fill in all fields", 
+        variant: "destructive" 
+      });
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
+    const result = await login(identifier, password, role);
+    
+    setIsSubmitting(false);
+    
+    if (result.success) {
+      toast({ title: "Welcome back!", description: "You have successfully logged in" });
+      navigate(role === "official" ? "/admin" : "/dashboard");
+    } else {
+      toast({ title: "Login Failed", description: result.error, variant: "destructive" });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -31,11 +72,28 @@ const Login = () => {
 
             {/* Login Form */}
             <div className="bg-card rounded-2xl border border-border/50 p-6">
-              <Tabs defaultValue="citizen" className="mb-6">
+              <Tabs value={role} onValueChange={(v) => setRole(v as UserRole)} className="mb-6">
                 <TabsList className="w-full">
-                  <TabsTrigger value="citizen" className="flex-1">Citizen</TabsTrigger>
-                  <TabsTrigger value="official" className="flex-1">Official</TabsTrigger>
+                  <TabsTrigger value="citizen" className="flex-1 gap-2">
+                    <User className="w-4 h-4" />
+                    Citizen
+                  </TabsTrigger>
+                  <TabsTrigger value="official" className="flex-1 gap-2">
+                    <Building2 className="w-4 h-4" />
+                    Official
+                  </TabsTrigger>
                 </TabsList>
+                
+                <TabsContent value="citizen" className="mt-4">
+                  <p className="text-sm text-muted-foreground text-center">
+                    Access your dashboard and track reported issues
+                  </p>
+                </TabsContent>
+                <TabsContent value="official" className="mt-4">
+                  <p className="text-sm text-muted-foreground text-center">
+                    Access the admin panel to manage civic issues
+                  </p>
+                </TabsContent>
               </Tabs>
 
               {/* Login Method Toggle */}
@@ -45,6 +103,7 @@ const Login = () => {
                   size="sm"
                   className="flex-1"
                   onClick={() => setLoginMethod("email")}
+                  type="button"
                 >
                   <Mail className="w-4 h-4 mr-2" />
                   Email
@@ -54,13 +113,14 @@ const Login = () => {
                   size="sm"
                   className="flex-1"
                   onClick={() => setLoginMethod("phone")}
+                  type="button"
                 >
                   <Phone className="w-4 h-4 mr-2" />
                   Phone
                 </Button>
               </div>
 
-              <form className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-4">
                 {loginMethod === "email" ? (
                   <div>
                     <Label htmlFor="email">Email Address</Label>
@@ -69,6 +129,9 @@ const Login = () => {
                       type="email"
                       placeholder="you@example.com"
                       className="mt-1.5 h-12"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
                     />
                   </div>
                 ) : (
@@ -85,6 +148,9 @@ const Login = () => {
                         type="tel"
                         placeholder="9876543210"
                         className="flex-1 h-12"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        required
                       />
                     </div>
                   </div>
@@ -103,6 +169,9 @@ const Login = () => {
                       type={showPassword ? "text" : "password"}
                       placeholder="••••••••"
                       className="h-12 pr-10"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
                     />
                     <button
                       type="button"
@@ -114,9 +183,18 @@ const Login = () => {
                   </div>
                 </div>
 
-                <Button variant="hero" size="lg" className="w-full gap-2">
-                  Sign In
-                  <ArrowRight className="w-4 h-4" />
+                <Button variant="hero" size="lg" className="w-full gap-2" disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Signing In...
+                    </>
+                  ) : (
+                    <>
+                      Sign In
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
                 </Button>
               </form>
 
@@ -132,7 +210,7 @@ const Login = () => {
 
               {/* Social Login */}
               <div className="grid grid-cols-2 gap-3">
-                <Button variant="outline" className="h-11">
+                <Button variant="outline" className="h-11" type="button">
                   <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
                     <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
                     <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
@@ -141,7 +219,7 @@ const Login = () => {
                   </svg>
                   Google
                 </Button>
-                <Button variant="outline" className="h-11">
+                <Button variant="outline" className="h-11" type="button">
                   <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M12 2C6.477 2 2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.879V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.989C18.343 21.129 22 16.99 22 12c0-5.523-4.477-10-10-10z" />
                   </svg>
