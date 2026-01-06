@@ -83,7 +83,7 @@ export function Footer() {
         <hr className="my-8 border-background/10" />
 
         <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-background/60">
-          <p>© 2025 CivSetu. A Government of India Initiative.</p>
+          <p>© 2025 CivSetu Created By Team DevX. A Government of India Initiative.</p>
           <div className="flex items-center gap-6">
             <Link to="/privacy" className="hover:text-secondary transition-colors">Privacy Policy</Link>
             <Link to="/terms" className="hover:text-secondary transition-colors">Terms of Service</Link>

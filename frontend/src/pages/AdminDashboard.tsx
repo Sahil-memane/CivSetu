@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Navbar } from "@/components/layout/Navbar"; // Re-import Navbar
 import { Button } from "@/components/ui/button";
@@ -40,95 +40,12 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 
-// Mock admin stats
-const stats = [
-  {
-    label: "Total Issues",
-    value: "1,247",
-    change: "+12%",
-    icon: FileText,
-    color: "bg-primary/10 text-primary",
-  },
-  {
-    label: "Pending",
-    value: "234",
-    change: "-5%",
-    icon: Clock,
-    color: "bg-warning/10 text-warning",
-  },
-  {
-    label: "In Progress",
-    value: "156",
-    change: "+8%",
-    icon: TrendingUp,
-    color: "bg-info/10 text-info",
-  },
-  {
-    label: "Resolved Today",
-    value: "45",
-    change: "+23%",
-    icon: CheckCircle2,
-    color: "bg-success/10 text-success",
-  },
-];
-
-// Mock issues for admin
-const adminIssues = [
-  {
-    id: "ISS-001",
-    title: "Large Pothole Near Market",
-    category: "Pothole",
-    location: "MG Road, Sector 5",
-    reportedBy: "Rahul S.",
-    reportedAt: "2 hours ago",
-    status: "pending",
-    priority: "high",
-    verifications: 12,
-    department: "Roads",
-  },
-  {
-    id: "ISS-002",
-    title: "Garbage Overflow - Critical",
-    category: "Garbage",
-    location: "Rajiv Chowk, Lane 4",
-    reportedBy: "Priya M.",
-    reportedAt: "3 hours ago",
-    status: "escalated",
-    priority: "critical",
-    verifications: 25,
-    department: "Sanitation",
-  },
-  {
-    id: "ISS-003",
-    title: "Street Light Not Working",
-    category: "Street Light",
-    location: "Gandhi Nagar, Block B",
-    reportedBy: "Amit K.",
-    reportedAt: "5 hours ago",
-    status: "in-progress",
-    priority: "medium",
-    verifications: 8,
-    department: "Electrical",
-  },
-  {
-    id: "ISS-004",
-    title: "Water Pipeline Leak",
-    category: "Water",
-    location: "Station Road",
-    reportedBy: "Sunita R.",
-    reportedAt: "1 day ago",
-    status: "in-progress",
-    priority: "high",
-    verifications: 15,
-    department: "Water Supply",
-  },
-];
+// Mock data removed. dynamic stats used.
 
 // Sidebar items - Removed Home/Map as they are in Navbar now
 const sidebarItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/admin", active: true },
   { icon: FileText, label: "Manage Issues", href: "/admin/issues" },
-  { icon: Users, label: "Citizens", href: "/admin/citizens" },
   { icon: BarChart3, label: "Analytics", href: "/admin/analytics" },
   { icon: Settings, label: "Settings", href: "/settings" },
 ];
@@ -151,15 +68,119 @@ const priorityConfig: Record<string, { label: string; class: string }> = {
 };
 
 const AdminDashboard = () => {
-  const [selectedIssue, setSelectedIssue] = useState<string | null>(null);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [issues, setIssues] = useState<any[]>([]);
+  const [stats, setStats] = useState({
+    total: 0,
+    pending: 0,
+    inProgress: 0,
+    resolvedToday: 0,
+  });
 
   const handleLogout = async () => {
     await logout();
     navigate("/login");
   };
+
+  useEffect(() => {
+    const fetchIssues = async () => {
+      try {
+        const response = await fetch("http://localhost:5000/api/issues/all");
+        if (response.ok) {
+          const data = await response.json();
+          let allIssues = data.issues || [];
+
+          // Department Filtering Logic
+          if (user?.department && user.department.toLowerCase() !== "admin") {
+            const dept = user.department.toLowerCase();
+            allIssues = allIssues.filter((issue: any) => {
+              const cat = (issue.category || "").toLowerCase();
+              if (
+                dept.includes("road") &&
+                (cat.includes("pothole") || cat.includes("road"))
+              )
+                return true;
+              if (
+                dept.includes("sanitation") &&
+                (cat.includes("garbage") || cat.includes("waste"))
+              )
+                return true;
+              if (
+                dept.includes("water") &&
+                (cat.includes("water") || cat.includes("drainage"))
+              )
+                return true;
+              if (
+                dept.includes("electric") &&
+                (cat.includes("light") || cat.includes("electric"))
+              )
+                return true;
+              return false;
+            });
+          }
+
+          setIssues(allIssues);
+
+          // Calculate Stats
+          const pending = allIssues.filter(
+            (i: any) => i.status === "pending"
+          ).length;
+          const inProgress = allIssues.filter(
+            (i: any) => i.status === "in-progress"
+          ).length;
+
+          const today = new Date().toDateString();
+          const resolved = allIssues.filter(
+            (i: any) => i.status === "resolved"
+          ).length; // accurate enough for now, ideal would be checking updatedAt
+
+          setStats({
+            total: allIssues.length,
+            pending,
+            inProgress,
+            resolvedToday: resolved, // Using total resolved for now as mock replacement
+          });
+        }
+      } catch (error) {
+        console.error("Failed to fetch issues", error);
+      }
+    };
+
+    if (user) fetchIssues();
+  }, [user]);
+
+  const statCards = [
+    {
+      label: "Total Issues",
+      value: stats.total.toLocaleString(),
+      change: "+0%", // Dynamic change requires history, keeping static for now or 0
+      icon: FileText,
+      color: "bg-primary/10 text-primary",
+    },
+    {
+      label: "Pending",
+      value: stats.pending.toLocaleString(),
+      change: "Active",
+      icon: Clock,
+      color: "bg-warning/10 text-warning",
+    },
+    {
+      label: "In Progress",
+      value: stats.inProgress.toLocaleString(),
+      change: "Active",
+      icon: TrendingUp,
+      color: "bg-info/10 text-info",
+    },
+    {
+      label: "Resolved",
+      value: stats.resolvedToday.toLocaleString(),
+      change: "Total",
+      icon: CheckCircle2,
+      color: "bg-success/10 text-success",
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-background">
@@ -169,19 +190,20 @@ const AdminDashboard = () => {
       <div className="flex pt-16 h-screen overflow-hidden">
         {/* Sidebar - Full Height minus navbar */}
         <aside className="hidden lg:flex w-72 flex-col fixed left-0 top-16 bottom-0 bg-card border-r border-border/50">
-          {/* Top Logo Section (Replaces Profile) */}
           <div className="p-6 border-b border-border/50">
-            <Link to="/" className="flex items-center gap-2">
+            <div className="flex items-center gap-2 px-2">
               <div className="w-8 h-8 rounded-lg hero-gradient flex items-center justify-center shadow-md">
                 <MapPin className="w-5 h-5 text-primary-foreground" />
               </div>
-              <span className="font-display font-bold text-xl text-foreground">
-                Civ<span className="text-primary">Setu</span>
-                <span className="text-xs font-normal text-muted-foreground ml-2 bg-muted px-2 py-0.5 rounded-full">
-                  Admin
+              <div className="flex flex-col">
+                <span className="font-display font-bold text-lg text-foreground leading-none">
+                  Civ<span className="text-primary">Setu</span>
                 </span>
-              </span>
-            </Link>
+                <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider mt-0.5">
+                  Admin Portal
+                </span>
+              </div>
+            </div>
           </div>
 
           {/* Navigation */}
@@ -227,17 +249,10 @@ const AdminDashboard = () => {
         <main className="flex-1 lg:ml-72 flex flex-col min-w-0 overflow-hidden">
           {/* Header */}
           <header className="h-20 border-b border-border/50 bg-card/50 backdrop-blur-sm flex items-center justify-between px-8 shrink-0 z-10">
-            <div className="flex items-center gap-4">
-              {/* Mobile sidebar toggle would go here */}
-            </div>
-
+            <div className="flex items-center gap-4">{/* Placehold */}</div>
             <div className="flex items-center gap-6">
-              <div className="hidden md:flex relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search system..."
-                  className="pl-10 w-64 h-9 bg-background"
-                />
+              <div className="text-sm font-medium mr-4">
+                {user?.department || "Admin"} Department
               </div>
             </div>
           </header>
@@ -253,19 +268,11 @@ const AdminDashboard = () => {
                   Real-time municipal operations overview
                 </p>
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="gap-2">
-                  <Filter className="w-4 h-4" /> Filter
-                </Button>
-                <Button variant="hero" size="sm" className="gap-2">
-                  <ArrowUpRight className="w-4 h-4" /> Export Report
-                </Button>
-              </div>
             </div>
 
             {/* Stats */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-              {stats.map((stat) => (
+              {statCards.map((stat) => (
                 <div
                   key={stat.label}
                   className="bg-card rounded-xl border border-border/50 p-6 shadow-sm hover:shadow-md transition-all duration-200"
@@ -279,17 +286,6 @@ const AdminDashboard = () => {
                     >
                       <stat.icon className="w-6 h-6" />
                     </div>
-                    <Badge
-                      variant="secondary"
-                      className={cn(
-                        "text-xs font-medium gap-1",
-                        stat.change.startsWith("+")
-                          ? "text-success bg-success/10"
-                          : "text-destructive bg-destructive/10"
-                      )}
-                    >
-                      {stat.change}
-                    </Badge>
                   </div>
                   <div className="font-display text-3xl font-bold text-foreground mb-1">
                     {stat.value}
@@ -302,150 +298,19 @@ const AdminDashboard = () => {
             </div>
 
             {/* Issues Table */}
-            <div className="bg-card rounded-2xl border border-border/50 overflow-hidden shadow-sm">
+            <div className="bg-card rounded-2xl border border-border/50 overflow-hidden shadow-sm min-h-[300px]">
               <div className="p-6 border-b border-border/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <h3 className="font-display text-lg font-bold">
                   Recent Issues
                 </h3>
-                <div className="flex items-center gap-3">
-                  <Select defaultValue="all">
-                    <SelectTrigger className="w-32 h-9">
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Status: All</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="in-progress">In Progress</SelectItem>
-                      <SelectItem value="escalated">Escalated</SelectItem>
-                      <SelectItem value="resolved">Resolved</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Select defaultValue="all">
-                    <SelectTrigger className="w-40 h-9">
-                      <SelectValue placeholder="Department" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Dept: All</SelectItem>
-                      <SelectItem value="roads">Roads</SelectItem>
-                      <SelectItem value="water">Water Supply</SelectItem>
-                      <SelectItem value="sanitation">Sanitation</SelectItem>
-                      <SelectItem value="electrical">Electrical</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-muted/30 border-b border-border/50">
-                    <tr>
-                      <th className="text-left px-6 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        Issue Details
-                      </th>
-                      <th className="text-left px-6 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        Location
-                      </th>
-                      <th className="text-left px-6 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        Department
-                      </th>
-                      <th className="text-left px-6 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th className="text-left px-6 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        Priority
-                      </th>
-                      <th className="text-right px-6 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/50">
-                    {adminIssues.map((issue) => (
-                      <tr
-                        key={issue.id}
-                        className="hover:bg-muted/30 transition-colors cursor-pointer group"
-                        onClick={() => setSelectedIssue(issue.id)}
-                      >
-                        <td className="px-6 py-4">
-                          <div className="flex flex-col gap-1">
-                            <span className="font-medium text-sm text-foreground group-hover:text-primary transition-colors">
-                              {issue.title}
-                            </span>
-                            <span className="text-xs text-muted-foreground flex items-center gap-1.5">
-                              <Clock className="w-3 h-3" /> {issue.reportedAt} •{" "}
-                              <span className="font-mono">{issue.id}</span>
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                            <MapPin className="w-3.5 h-3.5" />
-                            {issue.location}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-primary/40"></div>
-                            <span className="text-sm font-medium">
-                              {issue.department}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <Badge
-                            variant="secondary"
-                            className={cn(
-                              "text-xs border-0 font-medium",
-                              statusConfig[issue.status].class
-                            )}
-                          >
-                            {statusConfig[issue.status].label}
-                          </Badge>
-                        </td>
-                        <td className="px-6 py-4">
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "text-xs font-medium",
-                              priorityConfig[issue.priority].class
-                            )}
-                          >
-                            {priorityConfig[issue.priority].label}
-                          </Badge>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <MoreVertical className="w-4 h-4 text-muted-foreground" />
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Pagination */}
-              <div className="p-4 border-t border-border/50 flex items-center justify-between bg-muted/10">
-                <span className="text-xs text-muted-foreground">
-                  Showing <strong>4</strong> of <strong>234</strong> issues
-                </span>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-xs"
-                    disabled
-                  >
-                    Previous
-                  </Button>
-                  <Button variant="outline" size="sm" className="h-8 text-xs">
-                    Next
-                  </Button>
-                </div>
+              <div className="w-full h-full flex flex-col items-center justify-center py-20 text-muted-foreground">
+                <FileText className="w-12 h-12 mb-4 opacity-20" />
+                <p>No recent issues to display here.</p>
+                <p className="text-sm mt-1">
+                  Please go to "Manage Issues" to see the full list.
+                </p>
               </div>
             </div>
           </div>

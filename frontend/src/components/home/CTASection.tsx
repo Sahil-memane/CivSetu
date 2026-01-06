@@ -21,8 +21,8 @@ export function CTASection() {
               For Citizens
             </h3>
             <p className="text-muted-foreground mb-6 leading-relaxed">
-              Be the change you want to see. Report civic issues in your neighborhood 
-              and track their resolution. Your voice matters.
+              Be the change you want to see. Report civic issues in your
+              neighborhood and track their resolution. Your voice matters.
             </p>
             <ul className="space-y-3 mb-8">
               <li className="flex items-center gap-3 text-sm">
@@ -45,7 +45,11 @@ export function CTASection() {
               </li>
             </ul>
             <Link to="/report">
-              <Button variant="hero" size="lg" className="w-full sm:w-auto gap-2">
+              <Button
+                variant="hero"
+                size="lg"
+                className="w-full sm:w-auto gap-2"
+              >
                 Report an Issue
                 <ArrowRight className="w-5 h-5" />
               </Button>
@@ -61,7 +65,7 @@ export function CTASection() {
               For Authorities
             </h3>
             <p className="text-background/70 mb-6 leading-relaxed">
-              Streamline civic issue management with our powerful dashboard. 
+              Streamline civic issue management with our powerful dashboard.
               Prioritize, assign, and resolve issues efficiently.
             </p>
             <ul className="space-y-3 mb-8">
@@ -84,8 +88,12 @@ export function CTASection() {
                 Analytics & performance insights
               </li>
             </ul>
-            <Link to="/admin">
-              <Button variant="secondary" size="lg" className="w-full sm:w-auto gap-2">
+            <Link to="/login">
+              <Button
+                variant="secondary"
+                size="lg"
+                className="w-full sm:w-auto gap-2"
+              >
                 Access Admin Portal
                 <ArrowRight className="w-5 h-5" />
               </Button>

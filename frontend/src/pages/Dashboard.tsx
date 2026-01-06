@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { IssueCard, Issue } from "@/components/issues/IssueCard";
+import { IssueDetailModal } from "@/components/issues/IssueDetailModal";
 import { IssueStatusFilter } from "@/components/issues/IssueStatusFilter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +25,7 @@ const Dashboard = () => {
   const { user } = useAuth();
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [userIssues, setUserIssues] = useState<Issue[]>([]);
+  const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Fetch user's issues from backend
@@ -57,8 +59,17 @@ const Dashboard = () => {
             verifications: issue.verifications || 0,
             priority: issue.priority,
             imageUrl: issue.files?.images?.[0]
-              ? `http://localhost:5000/${issue.files.images[0]}`
+              ? issue.files.images[0].startsWith("http")
+                ? issue.files.images[0]
+                : `http://localhost:5000/${issue.files.images[0]}`
               : undefined,
+            // Pass raw arrays for engagement logic
+            agrees: issue.agrees || [],
+            disagrees: issue.disagrees || [],
+            comments: issue.comments || [],
+            // Pass full file object for modal
+            files: issue.files,
+            uid: issue.uid,
           }));
           setUserIssues(transformedIssues);
         } else {
@@ -86,6 +97,99 @@ const Dashboard = () => {
     if (diffHours < 24) return `${diffHours} hours ago`;
     if (diffDays < 30) return `${diffDays} days ago`;
     return date.toLocaleDateString();
+  };
+
+  const handleEngage = async (id: string, action: "agree" | "disagree") => {
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+      const token = await currentUser.getIdToken();
+
+      await fetch(`http://localhost:5000/api/issues/${id}/engage`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ action }),
+      });
+
+      // Optimistic update
+      setUserIssues((prev) =>
+        prev.map((issue) => {
+          if (issue.id === id) {
+            const uid = currentUser.uid;
+            let newAgrees = issue.agrees || [];
+            let newDisagrees = issue.disagrees || [];
+
+            if (action === "agree") {
+              if (newAgrees.includes(uid))
+                newAgrees = newAgrees.filter((u: string) => u !== uid);
+              else {
+                newAgrees = [...newAgrees, uid];
+                newDisagrees = newDisagrees.filter((u: string) => u !== uid);
+              }
+            } else {
+              if (newDisagrees.includes(uid))
+                newDisagrees = newDisagrees.filter((u: string) => u !== uid);
+              else {
+                newDisagrees = [...newDisagrees, uid];
+                newAgrees = newAgrees.filter((u: string) => u !== uid);
+              }
+            }
+            const updated = {
+              ...issue,
+              agrees: newAgrees,
+              disagrees: newDisagrees,
+            };
+            if (selectedIssue?.id === id) setSelectedIssue(updated);
+            return updated;
+          }
+          return issue;
+        })
+      );
+    } catch (err) {
+      console.error("Engagement failed", err);
+    }
+  };
+
+  const handleComment = async (id: string, text: string) => {
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+      const token = await currentUser.getIdToken();
+
+      const res = await fetch(
+        `http://localhost:5000/api/issues/${id}/comment`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ text }),
+        }
+      );
+
+      if (res.ok) {
+        const data = await res.json();
+        setUserIssues((prev) =>
+          prev.map((issue) => {
+            if (issue.id === id) {
+              const updated = {
+                ...issue,
+                comments: [...(issue.comments || []), data.comment],
+              };
+              if (selectedIssue?.id === id) setSelectedIssue(updated);
+              return updated;
+            }
+            return issue;
+          })
+        );
+      }
+    } catch (err) {
+      console.error("Comment failed", err);
+    }
   };
 
   const filteredIssues = userIssues.filter(
@@ -279,7 +383,11 @@ const Dashboard = () => {
               ) : (
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
                   {filteredIssues.map((issue) => (
-                    <IssueCard key={issue.id} issue={issue} />
+                    <IssueCard
+                      key={issue.id}
+                      issue={issue}
+                      onClick={() => setSelectedIssue(issue)}
+                    />
                   ))}
                 </div>
               )}
@@ -317,6 +425,15 @@ const Dashboard = () => {
               </div>
             </TabsContent>
           </Tabs>
+
+          {/* Modal */}
+          <IssueDetailModal
+            issue={selectedIssue}
+            isOpen={!!selectedIssue}
+            onClose={() => setSelectedIssue(null)}
+            onEngage={handleEngage}
+            onComment={handleComment}
+          />
         </div>
       </main>
 

@@ -37,18 +37,18 @@ if (!admin.apps.length) {
   if (serviceAccount) {
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
+      storageBucket: "civsetu-c18ea.firebasestorage.app", // Storage Bucket
     });
     hasDbAccess = true;
   } else {
-    // Fallback or initialization without explicit creds (may work on Google Cloud environment)
-    // Or just initialize default which might fail on local without setup
-    // For now, let's just initialize to allow the app to crash lazily if auth is used
+    // Fallback or initialization without explicit creds
     try {
       admin.initializeApp({
-        projectId: "civsetu-c18ea", // Explicitly set Project ID to fix "Unable to detect Project Id"
+        projectId: "civsetu-c18ea",
+        storageBucket: "civsetu-c18ea.firebasestorage.app",
       });
       console.log(
-        "Firebase Admin initialized with default credentials and Project ID: civsetu-c18ea. (DB Access likely restricted)"
+        "Firebase Admin initialized with default credentials. (DB/Storage Access likely restricted)"
       );
       // hasDbAccess remains false
     } catch (e) {
@@ -56,12 +56,11 @@ if (!admin.apps.length) {
     }
   }
 } else {
-  // If already initialized (e.g. hot reload), assume we have access if we had creds, or hard to tell.
-  // Ideally check app options. For simplicity in this dev loop:
   hasDbAccess = !!serviceAccount;
 }
 
 const db = admin.firestore();
 const auth = admin.auth();
+const bucket = admin.storage().bucket(); // Get Storage Bucket
 
-module.exports = { admin, db, auth, hasDbAccess };
+module.exports = { admin, db, auth, bucket, hasDbAccess };

@@ -2,24 +2,26 @@ import { useState, useEffect } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { IssueCard, Issue } from "@/components/issues/IssueCard";
+import { IssueDetailModal } from "@/components/issues/IssueDetailModal";
 import { IssueCategoryFilter } from "@/components/issues/IssueCategoryFilter";
 import { IssueStatusFilter } from "@/components/issues/IssueStatusFilter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, MapPin, List, Filter, X, Loader2 } from "lucide-react";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card";
+import { Search, Filter, X, Loader2 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { auth } from "@/lib/firebase";
+import { CivicMap } from "@/components/CivicMap";
 
 const MapView = () => {
+  const { user } = useAuth();
   const [issues, setIssues] = useState<Issue[]>([]);
+  const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [mapFocusTrigger, setMapFocusTrigger] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedStatus, setSelectedStatus] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [viewMode, setViewMode] = useState<"map" | "list">("map");
   const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
@@ -35,12 +37,20 @@ const MapView = () => {
             category: issue.category,
             status: issue.status,
             location: issue.location,
+            coordinates: issue.coordinates,
             reportedAt: formatDate(issue.createdAt),
             verifications: issue.verifications || 0,
             priority: issue.priority,
             imageUrl: issue.files?.images?.[0]
-              ? `http://localhost:5000/${issue.files.images[0]}`
+              ? issue.files.images[0].startsWith("http")
+                ? issue.files.images[0]
+                : `http://localhost:5000/${issue.files.images[0]}`
               : undefined,
+            agrees: issue.agrees || [],
+            disagrees: issue.disagrees || [],
+            comments: issue.comments || [],
+            files: issue.files,
+            uid: issue.uid,
           }));
           setIssues(transformedIssues);
         }
@@ -68,6 +78,99 @@ const MapView = () => {
     return date.toLocaleDateString();
   };
 
+  const handleEngage = async (id: string, action: "agree" | "disagree") => {
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return; // Should probably prompt login
+      const token = await currentUser.getIdToken();
+
+      await fetch(`http://localhost:5000/api/issues/${id}/engage`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ action }),
+      });
+
+      // Optimistic update
+      setIssues((prev) =>
+        prev.map((issue) => {
+          if (issue.id === id) {
+            const uid = currentUser.uid;
+            let newAgrees = issue.agrees || [];
+            let newDisagrees = issue.disagrees || [];
+
+            if (action === "agree") {
+              if (newAgrees.includes(uid))
+                newAgrees = newAgrees.filter((u: string) => u !== uid);
+              else {
+                newAgrees = [...newAgrees, uid];
+                newDisagrees = newDisagrees.filter((u: string) => u !== uid);
+              }
+            } else {
+              if (newDisagrees.includes(uid))
+                newDisagrees = newDisagrees.filter((u: string) => u !== uid);
+              else {
+                newDisagrees = [...newDisagrees, uid];
+                newAgrees = newAgrees.filter((u: string) => u !== uid);
+              }
+            }
+            const updated = {
+              ...issue,
+              agrees: newAgrees,
+              disagrees: newDisagrees,
+            };
+            if (selectedIssue?.id === id) setSelectedIssue(updated);
+            return updated;
+          }
+          return issue;
+        })
+      );
+    } catch (err) {
+      console.error("Engagement failed", err);
+    }
+  };
+
+  const handleComment = async (id: string, text: string) => {
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+      const token = await currentUser.getIdToken();
+
+      const res = await fetch(
+        `http://localhost:5000/api/issues/${id}/comment`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ text }),
+        }
+      );
+
+      if (res.ok) {
+        const data = await res.json();
+        setIssues((prev) =>
+          prev.map((issue) => {
+            if (issue.id === id) {
+              const updated = {
+                ...issue,
+                comments: [...(issue.comments || []), data.comment],
+              };
+              if (selectedIssue?.id === id) setSelectedIssue(updated);
+              return updated;
+            }
+            return issue;
+          })
+        );
+      }
+    } catch (err) {
+      console.error("Comment failed", err);
+    }
+  };
+
   const filteredIssues = issues.filter((issue) => {
     const matchesCategory =
       selectedCategory === "all" || issue.category === selectedCategory;
@@ -78,6 +181,22 @@ const MapView = () => {
       issue.location.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesStatus && matchesSearch;
   });
+
+  const handleIssueSelect = (issue: Issue) => {
+    setSelectedIssue(issue);
+    setIsModalOpen(true);
+  };
+
+  const handleViewOnMap = () => {
+    setIsModalOpen(false);
+    setMapFocusTrigger((prev) => prev + 1);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleModalClose = () => {
+    setIsModalOpen(false);
+    setSelectedIssue(null);
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -166,127 +285,13 @@ const MapView = () => {
           ) : (
             <>
               {/* Full Width Map Section */}
-              <div className="w-full h-[500px] bg-muted rounded-2xl relative overflow-hidden border border-border">
-                <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,hsl(var(--muted))_25%,hsl(var(--muted))_50%,transparent_50%,transparent_75%,hsl(var(--muted))_75%)] bg-[length:40px_40px] opacity-50" />
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="text-center">
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-primary/10 flex items-center justify-center">
-                      <MapPin className="w-8 h-8 text-primary" />
-                    </div>
-                    <p className="text-muted-foreground font-medium">
-                      Interactive Map is Loading...
-                    </p>
-                    <p className="text-sm text-muted-foreground/70">
-                      (Mock Version)
-                    </p>
-                  </div>
-                </div>
-
-                {/* Mock Map Pins with Hover Cards */}
-                <div className="absolute inset-0">
-                  {/* Critical Issue Pin */}
-                  <div className="absolute top-1/4 left-1/3">
-                    <HoverCard>
-                      <HoverCardTrigger asChild>
-                        <div className="w-8 h-8 bg-destructive rounded-full flex items-center justify-center animate-pulse-slow shadow-lg cursor-pointer hover:scale-110 transition-transform">
-                          <span className="text-destructive-foreground text-xs font-bold">
-                            {
-                              issues.filter((i) => i.priority === "critical")
-                                .length
-                            }
-                          </span>
-                        </div>
-                      </HoverCardTrigger>
-                      <HoverCardContent className="w-80">
-                        <div className="flex justify-between space-x-4">
-                          <div className="space-y-1">
-                            <h4 className="text-sm font-semibold">
-                              Critical Issues
-                            </h4>
-                            <p className="text-sm text-muted-foreground">
-                              High priority issues requiring immediate attention
-                              in this area.
-                            </p>
-                            <div className="flex items-center pt-2">
-                              <span className="text-xs text-muted-foreground">
-                                {
-                                  issues.filter(
-                                    (i) => i.priority === "critical"
-                                  ).length
-                                }{" "}
-                                issues found
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </HoverCardContent>
-                    </HoverCard>
-                  </div>
-
-                  {/* High Priority Pin */}
-                  <div className="absolute top-1/2 right-1/4">
-                    <HoverCard>
-                      <HoverCardTrigger asChild>
-                        <div
-                          className="w-8 h-8 bg-warning rounded-full flex items-center justify-center animate-pulse-slow shadow-lg cursor-pointer hover:scale-110 transition-transform"
-                          style={{ animationDelay: "1s" }}
-                        >
-                          <span className="text-warning-foreground text-xs font-bold">
-                            {issues.filter((i) => i.priority === "high").length}
-                          </span>
-                        </div>
-                      </HoverCardTrigger>
-                      <HoverCardContent className="w-80">
-                        <div className="flex justify-between space-x-4">
-                          <div className="space-y-1">
-                            <h4 className="text-sm font-semibold">
-                              High Priority
-                            </h4>
-                            <p className="text-sm text-muted-foreground">
-                              Issues that affect many users but are not critical
-                              hazards.
-                            </p>
-                          </div>
-                        </div>
-                      </HoverCardContent>
-                    </HoverCard>
-                  </div>
-
-                  {/* Normal Priority Pin */}
-                  <div className="absolute bottom-1/3 left-1/2">
-                    <HoverCard>
-                      <HoverCardTrigger asChild>
-                        <div
-                          className="w-8 h-8 bg-info rounded-full flex items-center justify-center animate-pulse-slow shadow-lg cursor-pointer hover:scale-110 transition-transform"
-                          style={{ animationDelay: "2s" }}
-                        >
-                          <span className="text-info-foreground text-xs font-bold">
-                            {
-                              issues.filter(
-                                (i) =>
-                                  i.priority === "medium" ||
-                                  i.priority === "low"
-                              ).length
-                            }
-                          </span>
-                        </div>
-                      </HoverCardTrigger>
-                      <HoverCardContent className="w-80">
-                        <div className="flex justify-between space-x-4">
-                          <div className="space-y-1">
-                            <h4 className="text-sm font-semibold">
-                              General Issues
-                            </h4>
-                            <p className="text-sm text-muted-foreground">
-                              Includes reported potholes, garbage, and other
-                              community reports.
-                            </p>
-                          </div>
-                        </div>
-                      </HoverCardContent>
-                    </HoverCard>
-                  </div>
-                </div>
+              <div className="w-full">
+                <CivicMap
+                  issues={issues}
+                  onIssueSelect={handleIssueSelect}
+                  selectedIssueId={selectedIssue?.id}
+                  focusTrigger={mapFocusTrigger}
+                />
               </div>
 
               {/* Issue Grid Section */}
@@ -302,10 +307,23 @@ const MapView = () => {
 
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
                   {filteredIssues.map((issue) => (
-                    <IssueCard key={issue.id} issue={issue} />
+                    <IssueCard
+                      key={issue.id}
+                      issue={issue}
+                      onClick={() => handleIssueSelect(issue)}
+                    />
                   ))}
                 </div>
               </div>
+
+              <IssueDetailModal
+                issue={selectedIssue}
+                isOpen={isModalOpen}
+                onClose={handleModalClose}
+                onEngage={handleEngage}
+                onComment={handleComment}
+                onViewOnMap={handleViewOnMap}
+              />
             </>
           )}
         </div>

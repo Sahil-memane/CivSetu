@@ -25,3 +25,4 @@ serviceAccountKey.json
 *.njsproj
 *.sln
 *.sw?
+users.txt

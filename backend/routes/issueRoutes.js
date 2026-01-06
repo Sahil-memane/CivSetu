@@ -1,10 +1,43 @@
 const express = require("express");
 const router = express.Router();
-const { db } = require("../config/firebase");
+const { db, bucket } = require("../config/firebase");
 const verifyToken = require("../middleware/authMiddleware");
 const { uploadIssueFiles } = require("../middleware/uploadMiddleware");
 const { determinePriority } = require("../services/priorityEngine");
 const { detectDuplicateIssues } = require("../services/visionService");
+
+// Helper to upload to Firebase Storage
+const uploadToFirebase = async (file, folder) => {
+  if (!bucket) throw new Error("Firebase Storage bucket not configured");
+
+  const filename = `${folder}/${Date.now()}-${Math.round(
+    Math.random() * 1e9
+  )}-${file.originalname}`;
+  const fileUpload = bucket.file(filename);
+
+  const blobStream = fileUpload.createWriteStream({
+    metadata: {
+      contentType: file.mimetype,
+    },
+  });
+
+  return new Promise((resolve, reject) => {
+    blobStream.on("error", (error) => reject(error));
+    blobStream.on("finish", async () => {
+      // Get a signed URL valid for a long time (e.g., 100 years)
+      try {
+        const [url] = await fileUpload.getSignedUrl({
+          action: "read",
+          expires: "03-01-2500",
+        });
+        resolve(url);
+      } catch (err) {
+        reject(err);
+      }
+    });
+    blobStream.end(file.buffer);
+  });
+};
 
 // @route   POST /api/issues/submit
 // @desc    Submit a new civic issue with AI priority detection
@@ -12,64 +45,64 @@ const { detectDuplicateIssues } = require("../services/visionService");
 router.post("/submit", verifyToken, uploadIssueFiles, async (req, res) => {
   try {
     const uid = req.user.uid;
-    const { title, description, category, location } = req.body;
+    const { title, description, category, address, latitude, longitude } =
+      req.body;
 
     // Validate required fields
-    if (!title || !category || !location) {
+    // We treat 'address' as the primary text location now
+    if (!title || !category || !address) {
       return res.status(400).json({
-        message: "Missing required fields: title, category, location",
+        message: "Missing required fields: title, category, address",
       });
     }
 
-    // Get uploaded files (now saved locally)
+    // ... (uploads)
     const imageFiles = req.files?.images || [];
     const voiceFile = req.files?.voice?.[0];
 
-    // Store file paths instead of buffers
-    const filePaths = imageFiles.map((file) => file.path);
-    const voicePath = voiceFile ? voiceFile.path : null;
+    console.log(`📝 Processing submission for user: ${uid}`);
 
-    console.log(`📝 New issue submission from user: ${uid}`);
-    console.log(
-      `   Category: ${category}, Files: ${imageFiles.length} images${
-        voicePath ? " + 1 voice" : ""
-      }`
+    // ... (rest of uploads)
+    const imageUploadPromises = imageFiles.map((file) =>
+      uploadToFirebase(file, "issues/images")
     );
+    const uploadedImageUrls = await Promise.all(imageUploadPromises);
 
-    // Step 1: For AI analysis, read first image as buffer
-    let imageBuffers = [];
-    if (imageFiles.length > 0) {
-      const fs = require("fs");
-      try {
-        const firstImageBuffer = fs.readFileSync(imageFiles[0].path);
-        imageBuffers = [firstImageBuffer];
-      } catch (err) {
-        console.warn("Could not read image for AI analysis:", err.message);
-      }
+    let uploadedVoiceUrl = null;
+    if (voiceFile) {
+      uploadedVoiceUrl = await uploadToFirebase(voiceFile, "issues/voice");
     }
 
-    // Step 2: Determine priority using AI
+    // ... (AI analysis)
+    let imageBuffers = [];
+    if (imageFiles.length > 0) {
+      imageBuffers = [imageFiles[0].buffer];
+    }
     const priorityResult = await determinePriority({
       images: imageBuffers,
       description: description || "",
       category,
     });
 
-    // Step 3: Save issue to Firestore with local file paths
+    // Step 3: Save issue to Firestore
     const issueData = {
       uid,
       title,
       description: description || "",
       category,
-      location,
+      location: address, // Store human-readable address in 'location' field
+      coordinates: {
+        lat: parseFloat(latitude) || 0,
+        lng: parseFloat(longitude) || 0,
+      },
       priority: priorityResult.priority.toLowerCase(),
       status: "pending",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       verifications: 0,
       files: {
-        images: filePaths,
-        voice: voicePath,
+        images: uploadedImageUrls,
+        voice: uploadedVoiceUrl,
       },
       aiAnalysis: {
         confidence: priorityResult.confidence,
@@ -158,6 +191,256 @@ router.get("/all", async (req, res) => {
     res.json({ issues });
   } catch (error) {
     console.error("Error fetching all issues:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// @route   POST /api/issues/:id/engage
+// @desc    Toggle agree/disagree status for an issue
+// @access  Private
+router.post("/:id/engage", verifyToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { action } = req.body; // "agree" or "disagree"
+    const uid = req.user.uid;
+
+    if (!["agree", "disagree"].includes(action)) {
+      return res.status(400).json({ message: "Invalid action" });
+    }
+
+    const issueRef = db.collection("issues").doc(id);
+    const issueDoc = await issueRef.get();
+
+    if (!issueDoc.exists) {
+      return res.status(404).json({ message: "Issue not found" });
+    }
+
+    const { admin } = require("../config/firebase");
+    const FieldValue = admin.firestore.FieldValue;
+
+    // Logic: If action is "agree", add to agrees, remove from disagrees (and vice versa)
+    // Actually, simple toggle: if already agreed, remove it. If not, add it and remove from disagree.
+
+    // We can do this atomically with a transaction or just sequential updates.
+    // For simplicity/performance in this MVP, we'll run updates.
+
+    const batch = db.batch();
+    const issueData = issueDoc.data();
+    const agrees = issueData.agrees || [];
+    const disagrees = issueData.disagrees || [];
+
+    if (action === "agree") {
+      if (agrees.includes(uid)) {
+        // Already agreed -> Remove it (Toggle off)
+        batch.update(issueRef, { agrees: FieldValue.arrayRemove(uid) });
+      } else {
+        // Not agreed -> Add to agree, Remove from disagree
+        batch.update(issueRef, {
+          agrees: FieldValue.arrayUnion(uid),
+          disagrees: FieldValue.arrayRemove(uid),
+        });
+      }
+    } else if (action === "disagree") {
+      if (disagrees.includes(uid)) {
+        // Already disagreed -> Remove it
+        batch.update(issueRef, { disagrees: FieldValue.arrayRemove(uid) });
+      } else {
+        // Not disagreed -> Add to disagree, Remove from agree
+        batch.update(issueRef, {
+          disagrees: FieldValue.arrayUnion(uid),
+          agrees: FieldValue.arrayRemove(uid),
+        });
+      }
+    }
+
+    await batch.commit();
+
+    // Return updated counts (approximation or need to re-fetch? Re-fetching is safer for UI sync)
+    // Ideally user of this endpoint should optimistcally update or re-fetch.
+    res.json({ message: "Engagement updated" });
+  } catch (error) {
+    console.error("Error updating engagement:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// @route   POST /api/issues/:id/comment
+// @desc    Add a comment to an issue (Max 3 per issue)
+// @access  Private
+router.post("/:id/comment", verifyToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { text } = req.body;
+    const { uid, name } = req.user;
+
+    if (!text || !text.trim()) {
+      return res.status(400).json({ message: "Comment text is required" });
+    }
+
+    const issueRef = db.collection("issues").doc(id);
+    const issueDoc = await issueRef.get();
+
+    if (!issueDoc.exists) {
+      return res.status(404).json({ message: "Issue not found" });
+    }
+
+    // Try to get the most specific name available
+    let commenterName = name;
+    if (!commenterName) {
+      try {
+        const userSnap = await db.collection("users").doc(uid).get();
+        if (userSnap.exists) {
+          commenterName = userSnap.data().name;
+        }
+      } catch (err) {
+        console.error("Error fetching user details for comment:", err);
+      }
+    }
+
+    const currentComments = issueDoc.data().comments || [];
+
+    if (currentComments.length >= 3) {
+      return res
+        .status(400)
+        .json({ message: "Maximum comment limit (3) reached for this issue." });
+    }
+
+    const newComment = {
+      uid,
+      userName: commenterName || "Anonymous",
+      text: text.trim(),
+      createdAt: new Date().toISOString(),
+    };
+
+    const { admin } = require("../config/firebase");
+    await issueRef.update({
+      comments: admin.firestore.FieldValue.arrayUnion(newComment),
+    });
+
+    res.json({ message: "Comment added", comment: newComment });
+  } catch (error) {
+    console.error("Error adding comment:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// @route   PUT /api/issues/:id/status
+// @desc    Update issue status and planning details (with optional docs)
+// @access  Private (Admin/Authority)
+const { upload } = require("../middleware/uploadMiddleware");
+
+router.put(
+  "/:id/status",
+  verifyToken,
+  upload.fields([{ name: "planningDocs", maxCount: 5 }]),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status, actionTaken, staffAllocated, resourcesUsed } = req.body;
+
+      // Upload Planning Docs if any
+      const planningFiles = req.files?.planningDocs || [];
+      const uploadPromises = planningFiles.map((file) =>
+        uploadToFirebase(file, "issues/planning")
+      );
+      const uploadedDocUrls = await Promise.all(uploadPromises);
+
+      const updateData = {
+        status,
+        actionTaken,
+        staffAllocated,
+        resourcesUsed,
+        updatedAt: new Date().toISOString(),
+      };
+
+      if (uploadedDocUrls.length > 0) {
+        updateData.planningDocs = uploadedDocUrls;
+      }
+
+      const issueRef = db.collection("issues").doc(id);
+      await issueRef.update(updateData);
+
+      res.json({
+        message: "Issue status updated",
+        planningDocs: uploadedDocUrls,
+      });
+    } catch (error) {
+      console.error("Error updating status:", error);
+      res.status(500).json({ message: "Server error" });
+    }
+  }
+);
+
+// @route   POST /api/issues/:id/reject
+// @desc    Reject an issue with reason and proofs
+// @access  Private
+router.post(
+  "/:id/reject",
+  verifyToken,
+  upload.fields([{ name: "rejectionProofs", maxCount: 5 }]),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { rejectionReason } = req.body;
+
+      const proofFiles = req.files?.rejectionProofs || [];
+      const uploadPromises = proofFiles.map((file) =>
+        uploadToFirebase(file, "issues/rejection")
+      );
+      const uploadedProofUrls = await Promise.all(uploadPromises);
+
+      const issueRef = db.collection("issues").doc(id);
+      await issueRef.update({
+        status: "rejected",
+        rejectionReason,
+        rejectionProofs: uploadedProofUrls,
+        rejectedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+
+      res.json({
+        message: "Issue rejected",
+        rejectionProofs: uploadedProofUrls,
+      });
+    } catch (error) {
+      console.error("Error rejecting issue:", error);
+      res.status(500).json({ message: "Server error" });
+    }
+  }
+);
+
+// @route   POST /api/issues/:id/resolve
+// @desc    Finalize resolution with proofs
+// @access  Private
+// Reusing uploadIssueFiles for handling 'images' field in form-data
+router.post("/:id/resolve", verifyToken, uploadIssueFiles, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { finalRemarks } = req.body;
+
+    const imageFiles = req.files?.images || [];
+
+    // Upload proofs
+    const imageUploadPromises = imageFiles.map((file) =>
+      uploadToFirebase(file, "issues/resolution_proofs")
+    );
+    const uploadedProofUrls = await Promise.all(imageUploadPromises);
+
+    const issueRef = db.collection("issues").doc(id);
+    await issueRef.update({
+      status: "resolved",
+      resolutionRemarks: finalRemarks,
+      resolutionProofs: uploadedProofUrls,
+      resolvedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    res.json({
+      message: "Issue resolved successfully",
+      proofs: uploadedProofUrls,
+    });
+  } catch (error) {
+    console.error("Error resolving issue:", error);
     res.status(500).json({ message: "Server error" });
   }
 });

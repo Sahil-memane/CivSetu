@@ -50,7 +50,8 @@ const ReportIssue = () => {
     title: "",
     description: "",
     category: "",
-    location: "",
+    address: "",
+    coordinates: { lat: 0, lng: 0 },
   });
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -74,7 +75,7 @@ const ReportIssue = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.title || !formData.category || !formData.location) {
+    if (!formData.title || !formData.category || !formData.address) {
       toast({
         title: "Missing Information",
         description: "Please fill in all required fields.",
@@ -86,24 +87,22 @@ const ReportIssue = () => {
     setIsSubmitting(true);
 
     try {
-      // Fix: Get token from Firebase auth.currentUser
       const currentUser = auth.currentUser;
-      if (!currentUser) {
-        throw new Error("User not authenticated");
-      }
+      if (!currentUser) throw new Error("User not authenticated");
       const token = await currentUser.getIdToken();
 
       const submitData = new FormData();
       submitData.append("title", formData.title);
       submitData.append("description", formData.description);
       submitData.append("category", formData.category);
-      submitData.append("location", formData.location);
+      submitData.append("address", formData.address); // User entered text
+      submitData.append("latitude", formData.coordinates.lat.toString()); // GPS
+      submitData.append("longitude", formData.coordinates.lng.toString()); // GPS
 
       imageFiles.forEach((file) => {
         submitData.append("images", file);
       });
 
-      // Append voice file if recorded
       if (voiceFile) {
         submitData.append("voice", voiceFile, "voice-recording.webm");
       }
@@ -116,6 +115,7 @@ const ReportIssue = () => {
         body: submitData,
       });
 
+      // ... (rest of handling)
       if (!response.ok) {
         throw new Error("Failed to submit issue");
       }
@@ -128,9 +128,7 @@ const ReportIssue = () => {
 
       toast({
         title: "Issue Reported Successfully!",
-        description: `AI assigned priority: ${result.priority.toUpperCase()} (${Math.round(
-          result.confidence * 100
-        )}% confidence)`,
+        description: `AI assigned priority: ${result.priority.toUpperCase()}`,
       });
     } catch (error: any) {
       console.error("Submission error:", error);
@@ -147,21 +145,24 @@ const ReportIssue = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
           setFormData((prev) => ({
             ...prev,
-            location: `${position.coords.latitude.toFixed(
-              6
-            )}, ${position.coords.longitude.toFixed(6)}`,
+            coordinates: { lat, lng },
+            // If address is empty, auto-fill it, otherwise keep user text
+            address:
+              prev.address || `GPS: ${lat.toFixed(6)}, ${lng.toFixed(6)}`,
           }));
           toast({
             title: "Location Detected",
-            description: "Your current location has been captured.",
+            description: "GPS coordinates captured successfully.",
           });
         },
         () => {
           toast({
             title: "Location Error",
-            description: "Unable to get your location. Please enter manually.",
+            description: "Unable to get GPS. Please enter address manually.",
             variant: "destructive",
           });
         }
@@ -422,16 +423,16 @@ const ReportIssue = () => {
               {/* Location */}
               <div className="bg-card rounded-2xl border border-border/50 p-6">
                 <Label className="text-base font-semibold mb-2 block">
-                  Location <span className="text-destructive">*</span>
+                  Address / Landmark <span className="text-destructive">*</span>
                 </Label>
                 <div className="flex gap-3">
                   <Input
-                    placeholder="Enter location or use GPS"
-                    value={formData.location}
+                    placeholder="Enter landmark (e.g. Near Central Park)"
+                    value={formData.address}
                     onChange={(e) =>
                       setFormData((prev) => ({
                         ...prev,
-                        location: e.target.value,
+                        address: e.target.value,
                       }))
                     }
                     className="flex-1 h-12"
@@ -443,7 +444,7 @@ const ReportIssue = () => {
                     className="gap-2 h-12"
                   >
                     <MapPin className="w-4 h-4" />
-                    Detect
+                    Auto-GPS
                   </Button>
                 </div>
 
@@ -453,9 +454,15 @@ const ReportIssue = () => {
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="text-center">
                       <MapPin className="w-8 h-8 text-primary mx-auto mb-2" />
-                      <p className="text-sm text-muted-foreground">
-                        {formData.location || "Location will appear here"}
+                      <p className="text-sm text-muted-foreground font-semibold">
+                        {formData.address || "Location will appear here"}
                       </p>
+                      {formData.coordinates.lat !== 0 && (
+                        <p className="text-xs text-muted-foreground mt-1 font-mono bg-background/50 px-2 py-1 rounded">
+                          GPS: {formData.coordinates.lat.toFixed(6)},{" "}
+                          {formData.coordinates.lng.toFixed(6)}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>

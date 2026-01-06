@@ -8,17 +8,8 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Configure disk storage (save files locally)
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadsDir);
-  },
-  filename: function (req, file, cb) {
-    // Generate unique filename: timestamp-randomstring-originalname
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + "-" + file.originalname);
-  },
-});
+// Configure memory storage (keep files in RAM for Firebase upload)
+const storage = multer.memoryStorage();
 
 // File filter - accept images, videos, documents, and audio (including WebM)
 const fileFilter = (req, file, cb) => {
@@ -30,7 +21,15 @@ const fileFilter = (req, file, cb) => {
   const extname = path.extname(file.originalname).toLowerCase().slice(1);
   const mimetype = file.mimetype.toLowerCase();
 
-  if (file.fieldname === "images") {
+  // Allow these fields to accept generic media (images, docs, videos)
+  const genericMediaFields = [
+    "images",
+    "planningDocs",
+    "rejectionProofs",
+    "resolutionProofs",
+  ];
+
+  if (genericMediaFields.includes(file.fieldname)) {
     const isValid =
       allowedImageTypes.test(extname) ||
       allowedVideoTypes.test(extname) ||
@@ -43,7 +42,11 @@ const fileFilter = (req, file, cb) => {
     if (isValid) {
       cb(null, true);
     } else {
-      cb(new Error("Only images, videos, and documents are allowed"));
+      cb(
+        new Error(
+          `Invalid file type for ${file.fieldname}. Only images, videos, and documents are allowed`
+        )
+      );
     }
   } else if (file.fieldname === "voice") {
     // Accept audio files - be lenient with WebM from browser
@@ -65,7 +68,7 @@ const fileFilter = (req, file, cb) => {
       cb(new Error("Only audio files are allowed for voice field"));
     }
   } else {
-    cb(new Error("Unexpected field"));
+    cb(new Error(`Unexpected field: ${file.fieldname}`));
   }
 };
 
@@ -87,4 +90,5 @@ const uploadIssueFiles = upload.fields([
 
 module.exports = {
   uploadIssueFiles,
+  upload,
 };

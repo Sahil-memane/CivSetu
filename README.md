@@ -1,152 +1,157 @@
-# CivSetu - Civic Engagement Platform
+# 🌉 CivSetu - Civic Issue Management Platform
 
-CivSetu is a bridge between citizens and municipal authorities, enabling real-time reporting and tracking of civic issues like potholes, garbage, and street lighting.
+CivSetu is a modern bridging platform designed to connect citizens with municipal authorities, enabling efficient reporting, tracking, and resolution of civic issues. It empowers citizens to voice their concerns and provides authorities with the tools to manage and resolve them effectively.
 
-## 🚀 Features
+## ✨ Features
 
-### Citizen Dashboard (Frontend)
+### 👥 For Citizens
 
-- **Dashboard UI**: Overview of reported issues and civic stats.
-- **Issue Reporting**:
-  - AI-powered priority detection (via Gemini).
-  - Image & Voice uploads.
-  - Categorization (Pothole, Garbage, Water, etc.).
-- **Map View**: Interactive map showing issues across the city.
-- **Authentication**: Secure login/signup via Firebase.
+- **Effortless Reporting**: Report issues with location, detailed descriptions, categories, and priority levels.
+- **Rich Media Proofs**: Attach images and voice notes to validate reports.
+- **Real-time Tracking**: Monitor the status of reported issues (Pending, In Progress, Resolved).
+- **Interactive Map**: View all reported issues on a Google Map interface with markers.
+- **Transparency**: View detailed official response plans, including action plans, allocated staff, and resources.
+- **Verification**: See "Resolution Verified" proofs (images, remarks) uploaded by authorities upon completion.
+- **Community Engagement**: Upvote (Agree), downvote (Disagree), and comment on issues to highlight community impact.
 
-### Backend API
+### 🏛️ For Authorities (Admin)
 
-- **Process Management**: Handles submissions, file uploads, and AI analysis.
-- **Database**: Firestore integration for real-time updates.
-- **Intelligence**: Google Cloud Vision & Gemini API for analyzing issue severity.
+- **Comprehensive Dashboard**: Get a real-time overview of total, pending, in-progress, and resolved issues.
+- **Issue Management**: Filter, search, and sort issues by priority, status, or category.
+- **Smart Priority AI**: **Gemini AI** integration automatically analyzes issue descriptions to assign priority levels (Low, Medium, High, Critical).
+- **Resolution Workflow**:
+  - **Plan Resolution**: Define action plans, allocate staff/resources, and upload planning documents.
+  - **Resolve Issue**: Upload final proof of work (images) and concluding remarks to mark an issue as resolved.
+  - **Reject Issue**: Reject invalid or duplicate reports with a reason and evidence.
+- **Department Filtering**: Admins see issues relevant to their specific department (e.g., Sanitation, Roads, Water).
+- **Analytics**: Visual insights into issue trends and resolution performance.
 
-## � Google Technology Stack
+## 🛠️ Technology Stack
 
-This project leverages the power of the Google Cloud ecosystem to deliver a smart and scalable solution.
+### Frontend
 
-- **Google Gemini (Generative AI)**
+- **Framework**: React (Vite)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS
+- **UI Library**: Shadcn UI (Radix Primitives)
+- **Icons**: Lucide React
+- **Maps**: `@vis.gl/react-google-maps`
+- **State Management**: React Context API
+- **Animations**: Framer Motion
 
-  - **Usage**: Analyzes images of reported issues (potholes, garbage, etc.) to automatically determine severity, category, and priority.
-  - **Benefit**: Reduces manual verification time and prioritizes critical issues effectively.
+### Backend
 
-- **Google Maps Platform** (Integration in Progress)
+- **Runtime**: Node.js
+- **Framework**: Express.js
+- **Database**: Firebase Firestore (NoSQL)
+- **Storage**: Firebase Cloud Storage (Images, Voice Notes, Documents)
+- **AI Integration**: Google Gemini AI (for Priority Detection)
+- **Authentication**: Firebase Admin SDK
 
-  - **Usage**: Provides an interactive map interface for citizens to visualize issues in their vicinity.
-  - **Benefit**: Offers high-precision geolocation and a familiar user interface.
+## 📂 Project Structure
 
-- **Firebase** (Google Cloud)
+```bash
+CivSetu/
+├── frontend/             # React Client Application
+│   ├── src/
+│   │   ├── components/   # Reusable UI components (ui/, issues/, common/)
+│   │   ├── pages/        # Route pages (Home, ManageIssues, AdminDashboard, etc.)
+│   │   ├── contexts/     # AuthContext, etc.
+│   │   ├── lib/          # Utilities and Firebase config
+│   │   └── ...
+│   └── ...
+├── backend/              # Node.js Express Server
+│   ├── config/           # Firebase Admin Setup
+│   ├── routes/           # API Routes (issueRoutes.js)
+│   ├── services/         # Business Logic (geminiService.js)
+│   ├── middleware/       # Auth and Upload Middleware
+│   ├── scripts/          # Database migration/seed scripts
+│   └── server.js         # Entry point
+└── README.md
+```
 
-  - **Authentication**: Secure and seamless sign-in for users.
-  - **Firestore**: Real-time NoSQL database for instant issue tracking and status updates.
-
-- **Google Cloud Vision** (via Gemini Multimodal capabilities)
-  - **Usage**: Understanding visual context in reported issue images.
-
-## �🛠️ Technology Stack
-
-- **Frontend**: React (Vite), TypeScript, Tailwind CSS, Shadcn UI.
-- **Backend**: Node.js, Express.js.
-- **Services**: Firebase (Auth, Firestore), Google Generative AI (Gemini), Multer.
-
-## ⚙️ Setup Instructions
+## 🚀 Getting Started
 
 ### Prerequisites
 
 - Node.js (v18+)
-- Firebase Project (with Auth & Firestore enabled)
-- Google Cloud Project (with Gemini API enabled)
+- Firebase Project (Firestore, Auth, Storage enabled)
+- Google Maps API Key
+- Gemini AI API Key
 
-### 1. Backend Setup
+### Installation
 
-1.  Navigate to the backend directory:
+1.  **Clone the repository**
+
+    ```bash
+    git clone https://github.com/yourusername/CivSetu.git
+    cd CivSetu
+    ```
+
+2.  **Setup Backend**
 
     ```bash
     cd backend
     npm install
     ```
 
-2.  **Environment Variables**: Create a `.env` file in `backend/`:
+    - Create a `.env` file in `backend/`:
+      ```env
+      PORT=5000
+      GEMINI_API_KEY=your_gemini_key
+      ```
+    - Place your Firebase Admin SDK JSON as `serviceAccountKey.json` in `backend/`.
 
-    ```env
-    PORT=5000
-
-    # Google Gemini API Key (for AI Analysis)
-    GEMINI_API_KEY=your_gemini_api_key_here
-
-    # Firebase Service Account (JSON string single line)
-    # Get this from Firebase Console -> Project Settings -> Service Accounts
-    FIREBASE_SERVICE_ACCOUNT='{"type":"service_account",...}'
-    ```
-
-3.  Start the server:
+3.  **Setup Frontend**
     ```bash
+    cd ../frontend
+    npm install
+    ```
+    - Create a `.env` file in `frontend/`:
+      ```env
+      VITE_FIREBASE_API_KEY=...
+      VITE_FIREBASE_AUTH_DOMAIN=...
+      VITE_FIREBASE_PROJECT_ID=...
+      VITE_FIREBASE_STORAGE_BUCKET=...
+      VITE_FIREBASE_MESSAGING_SENDER_ID=...
+      VITE_FIREBASE_APP_ID=...
+      VITE_GOOGLE_MAPS_API_KEY=...
+      ```
+
+### Running the Application
+
+1.  **Start Backend**
+
+    ```bash
+    cd backend
     npm run dev
     ```
 
-### 2. Frontend Setup
-
-1.  Navigate to the frontend directory:
+2.  **Start Frontend**
 
     ```bash
     cd frontend
-    npm install
-    ```
-
-2.  **Environment Variables**: Create a `.env` file in `frontend/`:
-
-    ```env
-    # Firebase Client Config (Get from Firebase Console)
-    VITE_FIREBASE_API_KEY=your_api_key
-    VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
-    VITE_FIREBASE_PROJECT_ID=your_project_id
-    VITE_FIREBASE_STORAGE_BUCKET=your_storage_bucket
-    VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-    VITE_FIREBASE_APP_ID=your_app_id
-    VITE_FIREBASE_MEASUREMENT_ID=your_measurement_id
-
-    # Google Maps API Key (Optional for now, required for Live Map)
-    VITE_GOOGLE_MAPS_API_KEY=your_maps_api_key
-    ```
-
-    _(Note: Currently `src/lib/firebase.ts` might be hardcoded for dev. Update it to use `import.meta.env` keys above)._
-
-3.  Start the development server:
-    ```bash
     npm run dev
     ```
 
-## 📡 API Endpoints
+3.  Access the app at `http://localhost:8080` (or the port Vite exposes).
 
-### Authentication (`/api/auth`)
+## 🔌 API Endpoints
 
-| Method | Endpoint | Description                           | Access  |
-| :----- | :------- | :------------------------------------ | :------ |
-| `GET`  | `/me`    | Get current user profile details      | Private |
-| `POST` | `/sync`  | Sync frontend user data to backend DB | Private |
+### Issues
 
-### Issues (`/api/issues`)
+- `GET /api/issues/all` - Fetch all issues (supports filtering).
+- `POST /api/issues/report` - Report a new issue (Multipart Form Data).
+- `PUT /api/issues/:id/status` - Update status / Add Planning details.
+- `POST /api/issues/:id/resolve` - Mark issue as resolved with proofs.
+- `POST /api/issues/:id/reject` - Reject an issue.
+- `POST /api/issues/:id/engage` - Like/Dislike an issue.
+- `POST /api/issues/:id/comment` - Add a comment.
 
-| Method | Endpoint  | Description                             | Access  |
-| :----- | :-------- | :-------------------------------------- | :------ |
-| `POST` | `/submit` | Submit a new issue (with files)         | Private |
-| `GET`  | `/user`   | Get all issues reported by current user | Private |
-| `GET`  | `/all`    | Get all issues (for Map View)           | Public  |
+## 🤝 Contributing
 
-## 📁 Project Structure
+Contributions are welcome! Please open an issue or submit a pull request for any improvements.
 
-```
-CivSetu/
-├── backend/
-│   ├── config/         # Firebase & DB Config
-│   ├── middleware/     # Auth & Upload Middleware
-│   ├── routes/         # API Routes (auth, issues)
-│   ├── services/       # AI & Business Logic
-│   └── uploads/        # Local file storage (temp)
-│
-└── frontend/
-    ├── src/
-    │   ├── components/ # Reusable UI components
-    │   ├── pages/      # Application Pages (Dashboard, Map, etc.)
-    │   ├── lib/        # Utilities & Firebase client
-    │   └── contexts/   # React Context (Auth)
-```
+## 📄 License
+
+This project is licensed under the MIT License.
