@@ -70,6 +70,18 @@ const Dashboard = () => {
             // Pass full file object for modal
             files: issue.files,
             uid: issue.uid,
+            // Map new fields
+            actionTaken: issue.actionTaken,
+            staffAllocated: issue.staffAllocated,
+            resourcesUsed: issue.resourcesUsed,
+            planningDocs: issue.planningDocs,
+            updatedAt: issue.updatedAt,
+            resolutionRemarks: issue.resolutionRemarks,
+            resolutionProofs: issue.resolutionProofs,
+            resolvedAt: issue.resolvedAt,
+            rejectedAt: issue.rejectedAt,
+            rejectionReason: issue.rejectionReason,
+            rejectionProofs: issue.rejectionProofs,
           }));
           setUserIssues(transformedIssues);
         } else {

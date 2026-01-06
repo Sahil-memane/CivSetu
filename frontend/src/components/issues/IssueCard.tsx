@@ -30,6 +30,20 @@ export interface Issue {
   disagrees?: string[];
   comments?: any[];
   uid?: string;
+  // Official Response Fields
+  actionTaken?: string;
+  staffAllocated?: string;
+  resourcesUsed?: string;
+  planningDocs?: string[];
+  updatedAt?: string;
+  // Resolution Fields
+  resolutionRemarks?: string;
+  resolutionProofs?: string[];
+  resolvedAt?: string;
+  // Rejection Fields
+  rejectedAt?: string;
+  rejectionReason?: string;
+  rejectionProofs?: string[];
 }
 
 interface IssueCardProps {
