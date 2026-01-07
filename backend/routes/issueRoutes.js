@@ -5,6 +5,8 @@ const verifyToken = require("../middleware/authMiddleware");
 const { uploadIssueFiles } = require("../middleware/uploadMiddleware");
 const { determinePriority } = require("../services/priorityEngine");
 const { detectDuplicateIssues } = require("../services/visionService");
+const { calculateSLA, getUpdatedSLAStatus } = require("../services/slaService");
+const { notifyCitizenOnResolution } = require("../services/notificationService");
 
 // Helper to upload to Firebase Storage
 const uploadToFirebase = async (file, folder) => {
@@ -84,6 +86,9 @@ router.post("/submit", verifyToken, uploadIssueFiles, async (req, res) => {
       category,
     });
 
+    // Calculate SLA based on priority and category
+    const slaDetails = calculateSLA(priorityResult.priority, category);
+
     // Step 3: Save issue to Firestore
     const issueData = {
       uid,
@@ -109,6 +114,7 @@ router.post("/submit", verifyToken, uploadIssueFiles, async (req, res) => {
         reasoning: priorityResult.reasoning,
         analysis: priorityResult.analysis,
       },
+      ...slaDetails // Add SLA fields
     };
 
     // Add issue to Firestore
@@ -155,12 +161,41 @@ router.get("/user", verifyToken, async (req, res) => {
     const issuesSnapshot = await query.get();
 
     const issues = [];
+    const migrationPromises = []; // For lazy migration
+
     issuesSnapshot.forEach((doc) => {
-      issues.push({
-        id: doc.id,
-        ...doc.data(),
-      });
+      let issue = { id: doc.id, ...doc.data() };
+
+      // LAZY MIGRATION: Check if SLA fields are missing
+      if (!issue.slaStatus && issue.status !== "resolved" && issue.status !== "rejected") {
+        // 1. Determine priority if missing (or use existing)
+        const priority = issue.priority || "medium";
+
+        // 2. Calculate SLA
+        const slaDetails = calculateSLA(priority, issue.category);
+
+        // 3. Update issue object for response
+        issue = { ...issue, ...slaDetails, priority };
+
+        // 4. Update in background
+        const updateRef = db.collection("issues").doc(issue.id);
+        migrationPromises.push(updateRef.update({ ...slaDetails, priority }));
+      } else if (issue.slaStatus) {
+        // Also check if status needs update
+        const updates = getUpdatedSLAStatus(issue);
+        if (updates) {
+          issue = { ...issue, ...updates };
+          migrationPromises.push(db.collection("issues").doc(issue.id).update(updates));
+        }
+      }
+
+      issues.push(issue);
     });
+
+    // Execute background updates
+    if (migrationPromises.length > 0) {
+      Promise.all(migrationPromises).catch(err => console.error("Error in lazy migration/update:", err));
+    }
 
     console.log(`✅ Found ${issues.length} issues for UID: ${uid}`);
     res.json({ issues });
@@ -181,12 +216,30 @@ router.get("/all", async (req, res) => {
       .get();
 
     const issues = [];
+    // Reuse lazy migration logic (Ideally should be a shared helper function)
+    const migrationPromises = [];
+
     issuesSnapshot.forEach((doc) => {
-      issues.push({
-        id: doc.id,
-        ...doc.data(),
-      });
+      let issue = { id: doc.id, ...doc.data() };
+
+      if (!issue.slaStatus && issue.status !== "resolved" && issue.status !== "rejected") {
+        const priority = issue.priority || "medium";
+        const slaDetails = calculateSLA(priority, issue.category);
+        issue = { ...issue, ...slaDetails, priority };
+        migrationPromises.push(db.collection("issues").doc(issue.id).update({ ...slaDetails, priority }));
+      } else if (issue.slaStatus) {
+        const updates = getUpdatedSLAStatus(issue);
+        if (updates) {
+          issue = { ...issue, ...updates };
+          migrationPromises.push(db.collection("issues").doc(issue.id).update(updates));
+        }
+      }
+      issues.push(issue);
     });
+
+    if (migrationPromises.length > 0) {
+      Promise.all(migrationPromises).catch(err => console.error("Error in lazy migration/update (public view):", err));
+    }
 
     res.json({ issues });
   } catch (error) {
@@ -427,13 +480,41 @@ router.post("/:id/resolve", verifyToken, uploadIssueFiles, async (req, res) => {
     const uploadedProofUrls = await Promise.all(imageUploadPromises);
 
     const issueRef = db.collection("issues").doc(id);
+    const issueDoc = await issueRef.get();
+
+    if (!issueDoc.exists) {
+      return res.status(404).json({ message: "Issue not found" });
+    }
+
+    const issueData = issueDoc.data();
+
+    // Calculate if resolved within SLA
+    const resolvedAt = new Date().toISOString();
+    let resolvedWithinSLA = true;
+    if (issueData.slaEndDate) {
+      resolvedWithinSLA = new Date(resolvedAt) <= new Date(issueData.slaEndDate);
+    }
+
     await issueRef.update({
       status: "resolved",
       resolutionRemarks: finalRemarks,
       resolutionProofs: uploadedProofUrls,
-      resolvedAt: new Date().toISOString(),
+      resolvedAt,
+      resolvedWithinSLA,
       updatedAt: new Date().toISOString(),
     });
+
+    // Notify Citizen
+    try {
+      const userDoc = await db.collection("users").doc(issueData.uid).get();
+      if (userDoc.exists) {
+        // Pass token if it exists, otherwise undefined (service handles it)
+        const fcmToken = userDoc.data().fcmToken;
+        await notifyCitizenOnResolution({ ...issueData, id }, fcmToken);
+      }
+    } catch (err) {
+      console.error("Error notifying citizen:", err);
+    }
 
     res.json({
       message: "Issue resolved successfully",
