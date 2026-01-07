@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Navbar } from "@/components/layout/Navbar";
+
 import { Footer } from "@/components/layout/Footer";
 import { IssueCard, Issue } from "@/components/issues/IssueCard";
 import { IssueDetailModal } from "@/components/issues/IssueDetailModal";
@@ -213,8 +213,6 @@ const MapView = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
-
       <main className="pt-16 pb-16">
         {/* Header */}
         <div className="bg-card border-b border-border/50">

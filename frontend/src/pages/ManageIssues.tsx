@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Navbar } from "@/components/layout/Navbar";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -278,8 +278,6 @@ const ManageIssues = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
-
       <div className="flex pt-16 h-screen overflow-hidden">
         {/* Sidebar */}
         <aside className="hidden lg:flex w-72 flex-col fixed left-0 top-16 bottom-0 bg-card border-r border-border/50">

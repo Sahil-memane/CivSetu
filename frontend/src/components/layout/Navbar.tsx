@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { GoogleTranslate } from "@/components/common/GoogleTranslate";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
@@ -43,9 +44,30 @@ const navLinks = [
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
+  const [googleOffset, setGoogleOffset] = useState(0);
   const location = useLocation();
   const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Monitor Google Translate banner adding 'top' to body
+    const updateOffset = () => {
+      const topVal = parseInt(document.body.style.top || "0", 10);
+      setGoogleOffset(isNaN(topVal) ? 0 : topVal);
+    };
+
+    // Observer to watch body style attribute
+    const observer = new MutationObserver(updateOffset);
+    observer.observe(document.body, {
+      attributes: true,
+      attributeFilter: ["style"],
+    });
+
+    // Initial check
+    updateOffset();
+
+    return () => observer.disconnect();
+  }, []);
 
   const handleLogout = async () => {
     await logout();
@@ -53,7 +75,10 @@ export function Navbar() {
   };
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-lg border-b border-border/50">
+    <nav
+      className="fixed left-0 right-0 z-50 bg-card/80 backdrop-blur-lg border-b border-border/50 transition-[top] duration-300 ease-in-out"
+      style={{ top: `${googleOffset}px` }}
+    >
       <div className="container mx-auto px-4 relative">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
@@ -141,6 +166,7 @@ export function Navbar() {
 
           {/* Desktop Actions */}
           <div className="hidden md:flex items-center gap-4 z-20">
+            <GoogleTranslate />
             {!isAuthenticated ? (
               <>
                 <Link to="/login">

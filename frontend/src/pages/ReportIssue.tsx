@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { auth } from "@/lib/firebase";
-import { Navbar } from "@/components/layout/Navbar";
+
 import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -173,7 +173,6 @@ const ReportIssue = () => {
   if (isSuccess) {
     return (
       <div className="min-h-screen bg-background">
-        <Navbar />
         <main className="pt-24 pb-16">
           <div className="container mx-auto px-4">
             <div className="max-w-lg mx-auto text-center">
@@ -252,8 +251,6 @@ const ReportIssue = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
-
       <main className="pt-24 pb-16">
         <div className="container mx-auto px-4">
           <div className="max-w-2xl mx-auto">

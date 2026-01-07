@@ -37,7 +37,7 @@ interface AuthContextType {
   loginWithEmail: (
     email: string,
     password: string
-  ) => Promise<{ success: boolean; error?: string }>;
+  ) => Promise<{ success: boolean; error?: string; user?: User }>;
   signupWithEmail: (
     data: SignupData
   ) => Promise<{ success: boolean; error?: string }>;
@@ -52,7 +52,7 @@ interface AuthContextType {
   verifyOtp: (
     confirmationResult: ConfirmationResult,
     otp: string
-  ) => Promise<{ success: boolean; error?: string }>;
+  ) => Promise<{ success: boolean; error?: string; user?: User }>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
 }
@@ -122,7 +122,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const loginWithEmail = async (
     email: string,
     password: string
-  ): Promise<{ success: boolean; error?: string }> => {
+  ): Promise<{ success: boolean; error?: string; user?: User }> => {
     try {
       const userCredential = await signInWithEmailAndPassword(
         auth,
@@ -132,6 +132,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       // Strict Backend Verification
       const token = await userCredential.user.getIdToken();
+      let userData: User | undefined;
 
       try {
         const response = await fetch("http://localhost:5000/api/auth/me", {
@@ -146,6 +147,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           );
         }
 
+        const backendUser = await response.json();
+        userData = { ...backendUser, id: userCredential.user.uid };
+
         // Optional: Pre-load user data here if needed, or let useEffect handle it
         // But we MUST wait for success before returning
       } catch (backendError: any) {
@@ -157,7 +161,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         };
       }
 
-      return { success: true };
+      return { success: true, user: userData };
     } catch (error: any) {
       console.error("Login error:", error);
       return { success: false, error: error.message };
@@ -238,7 +242,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const verifyOtp = async (
     confirmationResult: ConfirmationResult,
     otp: string
-  ): Promise<{ success: boolean; error?: string }> => {
+  ): Promise<{ success: boolean; error?: string; user?: User }> => {
     try {
       const result = await confirmationResult.confirm(otp);
       const firebaseUser = result.user;
@@ -252,6 +256,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         role: "citizen", // Default for phone login
         name: "Citizen", // Default
       };
+
+      let userData: User | undefined;
 
       try {
         // Use sync endpoint for phone login as it might be a new user
@@ -272,12 +278,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // (Or rely on the user object returned by sync if any)
         const syncResult = await response.json();
         if (syncResult.user) {
-          // Update local state immediately
-          setUser({
+          userData = {
             ...syncResult.user,
             id: firebaseUser.uid,
             createdAt: new Date(),
-          } as User);
+          } as User;
+
+          // Update local state immediately
+          setUser(userData);
         }
       } catch (backendError: any) {
         console.error("Backend phone verification failed:", backendError);
@@ -288,7 +296,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         };
       }
 
-      return { success: true };
+      return { success: true, user: userData };
     } catch (error: any) {
       console.error("OTP verification error:", error);
       return { success: false, error: error.message };

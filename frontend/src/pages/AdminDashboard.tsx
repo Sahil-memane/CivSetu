@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Navbar } from "@/components/layout/Navbar"; // Re-import Navbar
+// Re-import Navbar
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -185,7 +185,6 @@ const AdminDashboard = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Restored Public Navbar */}
-      <Navbar />
 
       <div className="flex pt-16 h-screen overflow-hidden">
         {/* Sidebar - Full Height minus navbar */}

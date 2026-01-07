@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Navbar } from "@/components/layout/Navbar";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -86,7 +86,7 @@ const Login = () => {
 
     if (result.success) {
       toast({ title: "Welcome back!", description: "Successfully logged in" });
-      navigate(role === "official" ? "/admin" : "/dashboard");
+      navigate(result.user?.role === "official" ? "/admin" : "/dashboard");
     } else {
       toast({
         title: "Login Failed",
@@ -118,7 +118,8 @@ const Login = () => {
             title: "Welcome back!",
             description: "Successfully logged in",
           });
-          navigate("/dashboard");
+          // Redirect based on role if available (phone login currently defaults to citizen)
+          navigate(result.user?.role === "official" ? "/admin" : "/dashboard");
         } else {
           toast({
             title: "Login Failed",
@@ -178,8 +179,6 @@ const Login = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
-
       <main className="pt-24 pb-16">
         <div className="container mx-auto px-4">
           <div className="max-w-md mx-auto">

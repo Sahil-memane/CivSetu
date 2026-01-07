@@ -13,6 +13,7 @@ CivSetu is a modern bridging platform designed to connect citizens with municipa
 - **Transparency**: View detailed official response plans, including action plans, allocated staff, and resources.
 - **Verification**: See "Resolution Verified" proofs (images, remarks) uploaded by authorities upon completion.
 - **Community Engagement**: Upvote (Agree), downvote (Disagree), and comment on issues to highlight community impact.
+- **Multilingual Support**: Real-time accessible translation into multiple Indian languages (Hindi, Marathi, Telugu, etc.) via Google Translate integration.
 
 ### 🏛️ For Authorities (Admin)
 
@@ -36,6 +37,7 @@ CivSetu is a modern bridging platform designed to connect citizens with municipa
 - **UI Library**: Shadcn UI (Radix Primitives)
 - **Icons**: Lucide React
 - **Maps**: `@vis.gl/react-google-maps`
+- **Translation**: Google Translate Widget
 - **State Management**: React Context API
 - **Animations**: Framer Motion
 
