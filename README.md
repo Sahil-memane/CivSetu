@@ -15,6 +15,7 @@ CivSetu is a modern bridging platform designed to connect citizens with municipa
 - **Community Engagement**: Upvote (Agree), downvote (Disagree), and comment on issues to highlight community impact.
 - **Multilingual Support**: Real-time accessible translation into multiple Indian languages (Hindi, Marathi, Telugu, etc.) via Google Translate integration.
 - **Community Surveys**: Participate in targeted surveys created by authorities to provide feedback on civic issues in your area.
+- **SLA Tracking**: View Service Level Agreement (SLA) status for your issues - see days remaining and if resolution is on track, at risk, or breached.
 
 ### 🏛️ For Authorities (Admin)
 
@@ -27,6 +28,12 @@ CivSetu is a modern bridging platform designed to connect citizens with municipa
   - **Reject Issue**: Reject invalid or duplicate reports with a reason and evidence.
 - **Department Filtering**: Admins see issues relevant to their specific department (e.g., Sanitation, Roads, Water).
 - **Analytics**: Visual insights into issue trends and resolution performance.
+- **SLA Management System**:
+  - **Automated Deadline Tracking**: Issues automatically assigned SLA deadlines based on priority (Critical: 1 day, High: 3 days, Medium: 7 days, Low: 14 days).
+  - **Status Monitoring**: Real-time SLA status indicators (On Track, At Risk, Breached) on issue cards.
+  - **Breach Alerts**: Dashboard shows total SLA breaches for immediate attention.
+  - **Background Jobs**: Automated cron job runs every 12 hours to update SLA statuses.
+  - **Citizen Notifications**: Automatic notifications sent to citizens when their issues are resolved.
 - **Community Survey System**:
   - **Spatial Analysis**: Visualize issue clusters on an interactive map (500m radius clustering).
   - **Targeted Surveys**: Create custom surveys for citizens whose issues fall within a selected cluster.
