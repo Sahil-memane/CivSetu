@@ -13,7 +13,8 @@ const { classifyIssueImage } = require("./visionService");
  * @param {string} data.category - User-selected category
  * @returns {Promise<Object>} Priority determination result
  */
-async function determinePriority({ images, description, category }) {
+async function determinePriority(issueData) {
+  const { images, description, category } = issueData;
   try {
     console.log("🤖 Starting AI Priority Analysis...");
 
@@ -28,21 +29,23 @@ async function determinePriority({ images, description, category }) {
     let visionConfidence = 0;
 
     if (images && images.length > 0) {
-      const visionResult = await classifyIssueImage(images[0]);
+      // Vision service usually takes a buffer. Let's assume we pass the first buffer.
+      // images is now [{buffer, mimeType}]
+      const firstImage = images[0];
+      const bufferToUse = firstImage.buffer || firstImage; // Handle both new and old format just in case
+
+      const visionResult = await classifyIssueImage(bufferToUse);
       visionCategory = visionResult.category;
       visionConfidence = visionResult.confidence;
     }
 
-    // 4. Run Gemini multimodal analysis (if images provided)
-    let geminiAnalysis = null;
-
-    if (images && images.length > 0) {
-      geminiAnalysis = await analyzeIssueMultimodal({
-        images,
-        description,
-        category: visionCategory || category,
-      });
-    }
+    // 4. Run Gemini multimodal analysis (Now used for VALIDATION too, so run always)
+    // Even if no images, we pass empty array or handle inside service, but service expects 'images'
+    // Let's pass what we have.
+    const geminiAnalysis = await analyzeIssueMultimodal({
+      ...issueData,
+      category: visionCategory || category,
+    });
 
     // 5. Combine all factors to determine final priority
     const finalPriority = combinePriorities({
@@ -53,6 +56,8 @@ async function determinePriority({ images, description, category }) {
     });
 
     const result = {
+      isValid: geminiAnalysis?.isValid !== false, // Default to true if undefined (fallback)
+      rejectionReason: geminiAnalysis?.rejectionReason || null,
       priority: finalPriority,
       confidence: geminiAnalysis?.confidence || 0.7,
       reasoning:
@@ -70,6 +75,7 @@ async function determinePriority({ images, description, category }) {
     };
 
     console.log("✅ Final Priority Decision:", {
+      isValid: result.isValid,
       priority: result.priority,
       confidence: result.confidence,
     });

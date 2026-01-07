@@ -26,6 +26,15 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { AlertTriangle } from "lucide-react";
 
 const categories = [
   { value: "pothole", label: "Pothole", icon: "🕳️" },
@@ -42,7 +51,13 @@ const ReportIssue = () => {
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+
+  // New State for Rejection Modal
+  const [isRejected, setIsRejected] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState("");
+
   const [aiResult, setAiResult] = useState<any>(null);
+
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [voiceFile, setVoiceFile] = useState<Blob | null>(null);
@@ -74,7 +89,6 @@ const ReportIssue = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!formData.title || !formData.category || !formData.address) {
       toast({
         title: "Missing Information",
@@ -85,6 +99,7 @@ const ReportIssue = () => {
     }
 
     setIsSubmitting(true);
+    setRejectionReason(""); // Reset previous rejection
 
     try {
       const currentUser = auth.currentUser;
@@ -92,12 +107,13 @@ const ReportIssue = () => {
       const token = await currentUser.getIdToken();
 
       const submitData = new FormData();
+      // ... append data ...
       submitData.append("title", formData.title);
       submitData.append("description", formData.description);
       submitData.append("category", formData.category);
-      submitData.append("address", formData.address); // User entered text
-      submitData.append("latitude", formData.coordinates.lat.toString()); // GPS
-      submitData.append("longitude", formData.coordinates.lng.toString()); // GPS
+      submitData.append("address", formData.address);
+      submitData.append("latitude", formData.coordinates.lat.toString());
+      submitData.append("longitude", formData.coordinates.lng.toString());
 
       imageFiles.forEach((file) => {
         submitData.append("images", file);
@@ -115,17 +131,26 @@ const ReportIssue = () => {
         body: submitData,
       });
 
-      // ... (rest of handling)
       if (!response.ok) {
-        throw new Error("Failed to submit issue");
+        const errData = await response.json();
+
+        // HANDLE REJECTION SPECIFICALLY
+        if (response.status === 400 && errData.isRejected) {
+          setRejectionReason(
+            errData.rejectionReason || "Issue rejected by AI validation"
+          );
+          setIsRejected(true); // Trigger Modal
+          setIsSubmitting(false); // Stop loading
+          return; // Stop execution
+        }
+
+        throw new Error(errData.message || "Failed to submit issue");
       }
 
       const result = await response.json();
-
       setAiResult(result);
       setIsSubmitting(false);
       setIsSuccess(true);
-
       toast({
         title: "Issue Reported Successfully!",
         description: `AI assigned priority: ${result.priority.toUpperCase()}`,
@@ -142,116 +167,171 @@ const ReportIssue = () => {
   };
 
   const getLocation = () => {
-    if (navigator.geolocation) {
+    if ("geolocation" in navigator) {
+      toast({
+        title: "Getting Location...",
+        description: "Please wait while we fetch your coordinates.",
+      });
+
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          const lat = position.coords.latitude;
-          const lng = position.coords.longitude;
           setFormData((prev) => ({
             ...prev,
-            coordinates: { lat, lng },
-            // If address is empty, auto-fill it, otherwise keep user text
-            address:
-              prev.address || `GPS: ${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+            coordinates: {
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+            },
           }));
           toast({
-            title: "Location Detected",
-            description: "GPS coordinates captured successfully.",
+            title: "Location detected",
+            description: "Coordinates updated successfully.",
           });
         },
-        () => {
+        (error) => {
+          console.error("Error getting location:", error);
           toast({
             title: "Location Error",
-            description: "Unable to get GPS. Please enter address manually.",
+            description:
+              "Could not retrieve your location. Please check browser permissions.",
             variant: "destructive",
           });
         }
       );
+    } else {
+      toast({
+        title: "Not Supported",
+        description: "Geolocation is not supported by your browser.",
+        variant: "destructive",
+      });
     }
   };
 
-  if (isSuccess) {
+  if (isSuccess && aiResult) {
     return (
-      <div className="min-h-screen bg-background">
-        <main className="pt-24 pb-16">
-          <div className="container mx-auto px-4">
-            <div className="max-w-lg mx-auto text-center">
-              <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-success/20 flex items-center justify-center animate-scale-in">
-                <CheckCircle2 className="w-10 h-10 text-success" />
-              </div>
-              <h1 className="font-display text-3xl font-bold mb-4">
-                Issue Reported!
-              </h1>
-
-              {aiResult && (
-                <div className="bg-card rounded-2xl border border-border/50 p-6 mb-6 text-left">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Sparkles className="w-5 h-5 text-primary" />
-                    <h3 className="font-semibold">AI Priority Analysis</h3>
-                  </div>
-                  <div className="space-y-3">
-                    <div>
-                      <span className="text-sm text-muted-foreground">
-                        Assigned Priority:
-                      </span>
-                      <div
-                        className={`inline-block ml-2 px-3 py-1 rounded-full text-sm font-medium ${
-                          aiResult.priority === "CRITICAL"
-                            ? "bg-destructive/20 text-destructive"
-                            : aiResult.priority === "HIGH"
-                            ? "bg-warning/20 text-warning"
-                            : aiResult.priority === "MEDIUM"
-                            ? "bg-info/20 text-info"
-                            : "bg-success/20 text-success"
-                        }`}
-                      >
-                        {aiResult.priority}
-                      </div>
-                    </div>
-                    <div>
-                      <span className="text-sm text-muted-foreground">
-                        Confidence:
-                      </span>
-                      <span className="ml-2 font-medium">
-                        {Math.round(aiResult.confidence * 100)}%
-                      </span>
-                    </div>
-                    {aiResult.reasoning && (
-                      <div>
-                        <span className="text-sm text-muted-foreground">
-                          Reasoning:
-                        </span>
-                        <p className="text-sm mt-1">{aiResult.reasoning}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <p className="text-muted-foreground mb-8">
-                Thank you for making your community better. Your issue has been
-                submitted and will be reviewed by the relevant authorities.
-                You'll receive updates on your dashboard.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Button variant="hero" onClick={() => setIsSuccess(false)}>
-                  Report Another Issue
-                </Button>
-                <Button variant="outline" asChild>
-                  <a href="/dashboard">View My Dashboard</a>
-                </Button>
-              </div>
-            </div>
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="bg-card w-full max-w-md p-8 rounded-2xl shadow-xl text-center border border-border/50">
+          <div className="w-16 h-16 bg-success/10 rounded-full flex items-center justify-center mx-auto mb-6">
+            <CheckCircle2 className="w-8 h-8 text-success" />
           </div>
-        </main>
-        <Footer />
+          <h2 className="font-display text-2xl font-bold mb-2">
+            Issue Reported!
+          </h2>
+          <p className="text-muted-foreground mb-6">
+            Thank you for helping improve our city. Your report has been
+            submitted.
+          </p>
+
+          <div className="bg-muted/50 rounded-xl p-4 mb-8 text-left">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-sm font-medium">AI Priority Assigned</span>
+              <span
+                className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                  aiResult.priority === "CRITICAL"
+                    ? "bg-destructive/10 text-destructive"
+                    : aiResult.priority === "HIGH"
+                    ? "bg-orange-500/10 text-orange-500"
+                    : "bg-blue-500/10 text-blue-500"
+                }`}
+              >
+                {aiResult.priority.toUpperCase()}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {aiResult.reasoning || "AI verified this issue."}
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <Button
+              variant="hero"
+              className="w-full"
+              onClick={() => {
+                setIsSuccess(false);
+                setAiResult(null);
+                setFormData({
+                  title: "",
+                  description: "",
+                  category: "",
+                  address: "",
+                  coordinates: { lat: 0, lng: 0 },
+                });
+                setImageFiles([]);
+                setImagePreviews([]);
+                setVoiceFile(null);
+              }}
+            >
+              Report Another Issue
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => (window.location.href = "/dashboard")}
+            >
+              Go to Dashboard
+            </Button>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Rejection Modal */}
+      <Dialog open={isRejected} onOpenChange={setIsRejected}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="mx-auto w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
+              <AlertTriangle className="h-6 w-6 text-destructive" />
+            </div>
+            <DialogTitle className="text-center text-xl text-destructive font-bold">
+              Submission Rejected
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="bg-destructive/5 p-4 rounded-lg border border-destructive/20">
+              <p className="font-semibold text-sm mb-1">Rejection Reason:</p>
+              <p className="text-sm text-muted-foreground">{rejectionReason}</p>
+            </div>
+
+            <div className="text-sm text-muted-foreground">
+              <p className="font-medium text-foreground mb-2">
+                What to do next:
+              </p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Provide more specific details in the description.</li>
+                <li>Ensure attached photos are clear and relevant.</li>
+                <li>Verify the location accuracy.</li>
+              </ul>
+            </div>
+          </div>
+
+          <DialogFooter className="sm:justify-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsRejected(false);
+                // Optional: Clear form or navigate away? User asked for "Discard" button in concept.
+                // But strictly user said "edit issue button... redirects to same issue filling form"
+                // So 'Edit' is just closing the modal.
+              }}
+            >
+              Close
+            </Button>
+            <Button
+              variant="hero"
+              className="bg-primary text-white hover:bg-primary/90"
+              onClick={() => setIsRejected(false)}
+            >
+              Edit Submission
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <main className="pt-24 pb-16">
+        {/* ... form content ... */}
         <div className="container mx-auto px-4">
           <div className="max-w-2xl mx-auto">
             {/* Header */}

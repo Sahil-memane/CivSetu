@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   APIProvider,
   Map,
@@ -9,12 +9,15 @@ import {
 import { Issue } from "./issues/IssueCard";
 import { Button } from "./ui/button";
 import { ChevronRight } from "lucide-react";
+import { Cluster } from "@/utils/clustering";
 
 interface CivicMapProps {
   issues: Issue[];
   onIssueSelect: (issue: Issue) => void;
   selectedIssueId?: string | null;
   focusTrigger?: number;
+  clusters?: Cluster[];
+  onClusterSelect?: (cluster: Cluster) => void;
 }
 
 const PUNE_CENTER = { lat: 18.5204, lng: 73.8567 };
@@ -45,11 +48,61 @@ function MapCameraControl({
   return null;
 }
 
+// Internal Circle Component using Google Maps API
+function MapCircle({
+  center,
+  radius,
+  fillColor,
+  strokeColor,
+  onClick,
+}: {
+  center: { lat: number; lng: number };
+  radius: number;
+  fillColor: string;
+  strokeColor: string;
+  onClick?: () => void;
+}) {
+  const map = useMap();
+  const circleRef = useRef<google.maps.Circle | null>(null);
+
+  useEffect(() => {
+    if (!map) return;
+
+    // Create circle
+    circleRef.current = new google.maps.Circle({
+      strokeColor: strokeColor,
+      strokeOpacity: 0.8,
+      strokeWeight: 2,
+      fillColor: fillColor,
+      fillOpacity: 0.35,
+      map: map,
+      center: center,
+      radius: radius,
+      zIndex: 1, // Below markers
+      clickable: !!onClick,
+    });
+
+    if (onClick) {
+      circleRef.current.addListener("click", onClick);
+    }
+
+    return () => {
+      if (circleRef.current) {
+        circleRef.current.setMap(null);
+      }
+    };
+  }, [map, center, radius, fillColor, strokeColor, onClick]);
+
+  return null;
+}
+
 export function CivicMap({
   issues,
   onIssueSelect,
   selectedIssueId,
   focusTrigger,
+  clusters = [],
+  onClusterSelect,
 }: CivicMapProps) {
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
   const [selectedMarker, setSelectedMarker] = useState<Issue | null>(null);
@@ -96,6 +149,33 @@ export function CivicMap({
               issues={issues}
               focusTrigger={focusTrigger}
             />
+
+            {/* Render Clusters */}
+            {clusters.map((cluster) => (
+              <div key={cluster.id}>
+                <MapCircle
+                  center={cluster.center}
+                  radius={cluster.radius}
+                  fillColor="#F97316" // Orange
+                  strokeColor="#EA580C"
+                  onClick={() => onClusterSelect?.(cluster)}
+                />
+                <Marker
+                  position={cluster.center}
+                  label={{
+                    text: cluster.issues.length.toString(),
+                    color: "white",
+                    fontWeight: "bold",
+                  }}
+                  icon={{
+                    path: (window as any).google?.maps?.SymbolPath?.CIRCLE,
+                    scale: 0, // Hidden marker, just label
+                  }}
+                  zIndex={100}
+                  onClick={() => onClusterSelect?.(cluster)}
+                />
+              </div>
+            ))}
 
             {issues.map((issue) => {
               // Ensure coordinates exist

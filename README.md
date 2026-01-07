@@ -14,6 +14,7 @@ CivSetu is a modern bridging platform designed to connect citizens with municipa
 - **Verification**: See "Resolution Verified" proofs (images, remarks) uploaded by authorities upon completion.
 - **Community Engagement**: Upvote (Agree), downvote (Disagree), and comment on issues to highlight community impact.
 - **Multilingual Support**: Real-time accessible translation into multiple Indian languages (Hindi, Marathi, Telugu, etc.) via Google Translate integration.
+- **Community Surveys**: Participate in targeted surveys created by authorities to provide feedback on civic issues in your area.
 
 ### 🏛️ For Authorities (Admin)
 
@@ -26,6 +27,11 @@ CivSetu is a modern bridging platform designed to connect citizens with municipa
   - **Reject Issue**: Reject invalid or duplicate reports with a reason and evidence.
 - **Department Filtering**: Admins see issues relevant to their specific department (e.g., Sanitation, Roads, Water).
 - **Analytics**: Visual insights into issue trends and resolution performance.
+- **Community Survey System**:
+  - **Spatial Analysis**: Visualize issue clusters on an interactive map (500m radius clustering).
+  - **Targeted Surveys**: Create custom surveys for citizens whose issues fall within a selected cluster.
+  - **Response Management**: View all citizen responses with names, emails, and timestamps.
+  - **Data-Driven Decisions**: Gather community feedback to prioritize and improve civic services.
 
 ## 🛠️ Technology Stack
 
@@ -149,6 +155,13 @@ CivSetu/
 - `POST /api/issues/:id/reject` - Reject an issue.
 - `POST /api/issues/:id/engage` - Like/Dislike an issue.
 - `POST /api/issues/:id/comment` - Add a comment.
+
+### Surveys
+
+- `GET /api/surveys` - Fetch all surveys (supports `userId` filtering for citizens).
+- `POST /api/surveys/create` - Create a new survey targeting specific users.
+- `POST /api/surveys/:id/respond` - Submit citizen response to a survey.
+- `GET /api/surveys/:id/responses` - Fetch all responses for a survey (Admin only).
 
 ## 🤝 Contributing
 

@@ -11,6 +11,7 @@ import MapView from "./pages/MapView";
 import ReportIssue from "./pages/ReportIssue";
 import Dashboard from "./pages/Dashboard";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminMapView from "./pages/AdminMapView";
 import ManageIssues from "./pages/ManageIssues";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -39,6 +40,7 @@ const App = () => (
               />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/admin/map" element={<AdminMapView />} />
               <Route path="/admin/issues" element={<ManageIssues />} />
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />

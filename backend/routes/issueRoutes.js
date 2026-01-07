@@ -74,15 +74,38 @@ router.post("/submit", verifyToken, uploadIssueFiles, async (req, res) => {
     }
 
     // ... (AI analysis)
-    let imageBuffers = [];
+    let processedImages = [];
     if (imageFiles.length > 0) {
-      imageBuffers = [imageFiles[0].buffer];
+      // Pass buffer AND mimetype
+      processedImages = imageFiles.map((file) => ({
+        buffer: file.buffer,
+        mimeType: file.mimetype,
+      }));
     }
+
     const priorityResult = await determinePriority({
-      images: imageBuffers,
+      images: processedImages, // Pass objects instead of just buffers
       description: description || "",
       category,
+      title, // Pass title for validation
+      address, // Pass address for validation
+      coordinates: {
+        lat: parseFloat(latitude) || 0,
+        lng: parseFloat(longitude) || 0,
+      },
     });
+
+    // CHECK VALIDATION
+    if (priorityResult.isValid === false) {
+      console.warn("⚠️ Issue Rejected by AI:", priorityResult.rejectionReason);
+      return res.status(400).json({
+        message: "Issue validation failed",
+        isRejected: true,
+        rejectionReason:
+          priorityResult.rejectionReason ||
+          "The submitted issue does not appear to be a valid civic complaint.",
+      });
+    }
 
     // Step 3: Save issue to Firestore
     const issueData = {
@@ -97,6 +120,7 @@ router.post("/submit", verifyToken, uploadIssueFiles, async (req, res) => {
       },
       priority: priorityResult.priority.toLowerCase(),
       status: "pending",
+      isValid: true, // Mark as valid
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       verifications: 0,

@@ -1,5 +1,8 @@
 const { auth } = require("../config/firebase");
 
+// Simple in-memory cache: { [token]: { decodedToken, expiresAt } }
+const tokenCache = new Map();
+
 const verifyToken = async (req, res, next) => {
   const token = req.headers.authorization?.split(" ")[1];
 
@@ -7,15 +10,29 @@ const verifyToken = async (req, res, next) => {
     return res.status(401).json({ message: "No token provided" });
   }
 
+  // Check Cache
+  if (tokenCache.has(token)) {
+    const cached = tokenCache.get(token);
+    if (Date.now() < cached.expiresAt) {
+      req.user = cached.decodedToken;
+      return next();
+    } else {
+      tokenCache.delete(token); // Expired
+    }
+  }
+
   try {
-    console.log(`Verifying token: ${token.substring(0, 10)}...`);
     const decodedToken = await auth.verifyIdToken(token);
-    console.log("Token verified successfully for UID:", decodedToken.uid);
+
+    // Cache it
+    // exp is in seconds, convert to ms
+    const expiresAt = decodedToken.exp * 1000;
+    tokenCache.set(token, { decodedToken, expiresAt });
+
     req.user = decodedToken;
     next();
   } catch (error) {
     console.error("Error verifying token:", error.message);
-    console.error("Full Error:", error); // detailed debugging
     return res
       .status(403)
       .json({ message: "Invalid or expired token", error: error.message });

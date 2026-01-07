@@ -4,6 +4,7 @@ import { Footer } from "@/components/layout/Footer";
 import { IssueCard, Issue } from "@/components/issues/IssueCard";
 import { IssueDetailModal } from "@/components/issues/IssueDetailModal";
 import { IssueStatusFilter } from "@/components/issues/IssueStatusFilter";
+import { SurveyList } from "@/components/surveys/SurveyList";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -350,11 +351,8 @@ const Dashboard = () => {
               <TabsTrigger value="my-issues" className="rounded-lg">
                 My Issues
               </TabsTrigger>
-              <TabsTrigger value="verified" className="rounded-lg">
-                Verified by Me
-              </TabsTrigger>
-              <TabsTrigger value="nearby" className="rounded-lg">
-                Nearby Issues
+              <TabsTrigger value="surveys" className="rounded-lg">
+                Surveys
               </TabsTrigger>
             </TabsList>
 
@@ -403,36 +401,8 @@ const Dashboard = () => {
               )}
             </TabsContent>
 
-            <TabsContent value="verified">
-              <div className="text-center py-12">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-muted flex items-center justify-center">
-                  <CheckCircle2 className="w-8 h-8 text-muted-foreground" />
-                </div>
-                <h3 className="font-display font-semibold text-lg mb-2">
-                  Verifications
-                </h3>
-                <p className="text-muted-foreground">
-                  You've helped verify {userData.verificationsGiven} issues in
-                  your community.
-                </p>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="nearby">
-              <div className="text-center py-12">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-muted flex items-center justify-center">
-                  <TrendingUp className="w-8 h-8 text-muted-foreground" />
-                </div>
-                <h3 className="font-display font-semibold text-lg mb-2">
-                  Nearby Issues
-                </h3>
-                <p className="text-muted-foreground mb-4">
-                  Enable location to see issues near you and help verify them.
-                </p>
-                <Link to="/map">
-                  <Button variant="outline">View Issue Map</Button>
-                </Link>
-              </div>
+            <TabsContent value="surveys">
+              <SurveyList />
             </TabsContent>
           </Tabs>
 

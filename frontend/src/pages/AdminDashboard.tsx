@@ -45,6 +45,7 @@ import {
 // Sidebar items - Removed Home/Map as they are in Navbar now
 const sidebarItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/admin", active: true },
+  { icon: MapPin, label: "Map View", href: "/admin/map" },
   { icon: FileText, label: "Manage Issues", href: "/admin/issues" },
   { icon: BarChart3, label: "Analytics", href: "/admin/analytics" },
   { icon: Settings, label: "Settings", href: "/settings" },

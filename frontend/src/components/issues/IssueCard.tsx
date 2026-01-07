@@ -44,6 +44,7 @@ export interface Issue {
   rejectedAt?: string;
   rejectionReason?: string;
   rejectionProofs?: string[];
+  coordinates?: { lat: number; lng: number };
 }
 
 interface IssueCardProps {
