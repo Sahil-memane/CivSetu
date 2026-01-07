@@ -19,6 +19,8 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { auth } from "@/lib/firebase";
+import { useToast } from "@/hooks/use-toast";
+
 import { IssueDetailModal } from "@/components/issues/IssueDetailModal";
 import { ResolutionModal } from "@/components/issues/ResolutionModal";
 import { PlanningModal } from "@/components/issues/PlanningModal";
@@ -166,12 +168,13 @@ const ManageIssues = () => {
       }
 
       // 2. Tab Filter
+      const s = issue.status?.toLowerCase();
       if (activeTab === "pending") {
-        return issue.status === "pending" || issue.status === "escalated";
+        return s === "pending" || s === "escalated";
       } else if (activeTab === "in-progress") {
-        return issue.status === "in-progress";
+        return s === "in-progress" || s === "assigned";
       } else if (activeTab === "resolved") {
-        return issue.status === "resolved";
+        return s === "resolved";
       }
       return true;
     })
@@ -181,9 +184,12 @@ const ManageIssues = () => {
       return pA - pB;
     });
 
+  const { toast } = useToast();
+
   const handlePlanConfirm = async (formData: FormData) => {
     if (!planningIssue) return;
 
+    const previousIssues = [...allDepartmentIssues];
     // Convert FormData entries to object for optimistic update (simplified)
     const updates = Object.fromEntries(formData.entries());
 
@@ -196,7 +202,7 @@ const ManageIssues = () => {
 
     try {
       const token = await auth.currentUser?.getIdToken();
-      await fetch(
+      const response = await fetch(
         `http://localhost:5000/api/issues/${planningIssue.id}/status`,
         {
           method: "PUT",
@@ -206,14 +212,30 @@ const ManageIssues = () => {
           body: formData,
         }
       );
+
+      if (!response.ok) {
+        throw new Error("Failed to plan issue");
+      }
+
+      toast({
+        title: "Success",
+        description: "Issue status updated to In Progress",
+      });
     } catch (e) {
       console.error("Failed to plan issue", e);
+      setAllDepartmentIssues(previousIssues);
+      toast({
+        title: "Error",
+        description: "Failed to update issue status",
+        variant: "destructive",
+      });
     }
   };
 
   const handleResolveConfirm = async (formData: FormData) => {
     if (!resolveIssue) return;
 
+    const previousIssues = [...allDepartmentIssues];
     // Optimistic Update
     const updatedIssues = allDepartmentIssues.map((i) =>
       i.id === resolveIssue.id ? { ...i, status: "resolved" } : i
@@ -222,7 +244,7 @@ const ManageIssues = () => {
 
     try {
       const token = await auth.currentUser?.getIdToken();
-      await fetch(
+      const response = await fetch(
         `http://localhost:5000/api/issues/${resolveIssue.id}/resolve`,
         {
           method: "POST",
@@ -232,18 +254,32 @@ const ManageIssues = () => {
           body: formData,
         }
       );
+
+      if (!response.ok) {
+        throw new Error("Failed to resolve on backend");
+      }
+
+      toast({
+        title: "Resolved",
+        description: "Issue has been marked as resolved",
+        className: "bg-green-600 text-white border-green-700",
+      });
     } catch (e) {
       console.error("Failed to resolve on backend", e);
+      setAllDepartmentIssues(previousIssues);
+      toast({
+        title: "Error",
+        description: "Failed to resolve issue. Please check your connection or try again.",
+        variant: "destructive",
+      });
     }
   };
 
   const handleRejectConfirm = async (formData: FormData) => {
     if (!rejectIssue) return;
 
-    const updatedIssues = allDepartmentIssues.filter(
-      (i) => i.id !== rejectIssue.id
-    ); // Remove or update? Let's just update and let filter hide it if needed
-    // Actually, let's keep it but status changes.
+    const previousIssues = [...allDepartmentIssues];
+
     const updatedList = allDepartmentIssues.map((i) =>
       i.id === rejectIssue.id ? { ...i, status: "rejected" } : i
     );
@@ -251,15 +287,33 @@ const ManageIssues = () => {
 
     try {
       const token = await auth.currentUser?.getIdToken();
-      await fetch(`http://localhost:5000/api/issues/${rejectIssue.id}/reject`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
+      const response = await fetch(
+        `http://localhost:5000/api/issues/${rejectIssue.id}/reject`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to reject issue");
+      }
+
+      toast({
+        title: "Rejected",
+        description: "Issue has been rejected",
       });
     } catch (e) {
       console.error("Failed to reject issue", e);
+      setAllDepartmentIssues(previousIssues);
+      toast({
+        title: "Error",
+        description: "Failed to reject issue",
+        variant: "destructive",
+      });
     }
   };
 
@@ -412,6 +466,9 @@ const ManageIssues = () => {
                       <th className="text-left px-6 py-4 text-xs font-semibold text-muted-foreground uppercase">
                         Priority
                       </th>
+                      <th className="text-left px-6 py-4 text-xs font-semibold text-muted-foreground uppercase">
+                        SLA / Days Left
+                      </th>
                       <th className="text-right px-6 py-4 text-xs font-semibold text-muted-foreground uppercase">
                         Actions
                       </th>
@@ -421,7 +478,7 @@ const ManageIssues = () => {
                     {filteredIssues.length === 0 && !loading && (
                       <tr>
                         <td
-                          colSpan={6}
+                          colSpan={7}
                           className="px-6 py-12 text-center text-muted-foreground"
                         >
                           No {activeTab.replace("-", " ")} issues found.
@@ -460,22 +517,57 @@ const ManageIssues = () => {
                             className={cn(
                               "text-xs border border-transparent font-medium capitalize",
                               statusConfig[issue.status]?.class ||
-                                "bg-secondary"
+                              "bg-secondary"
                             )}
                           >
                             {issue.status}
                           </Badge>
                         </td>
+
                         <td className="px-6 py-4">
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "text-xs font-medium capitalize",
-                              priorityConfig[issue.priority]?.class || ""
-                            )}
-                          >
-                            {issue.priority}
-                          </Badge>
+                          <div className="flex flex-col gap-1">
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "text-xs font-medium capitalize w-fit",
+                                priorityConfig[issue.priority]?.class || ""
+                              )}
+                            >
+                              {issue.priority}
+                            </Badge>
+                            {/* Escalation Indicator */}
+                            {issue.adminEscalatedPriority &&
+                              (() => {
+                                const pMap: Record<string, number> = { low: 1, medium: 2, high: 3, critical: 4 };
+                                const current = pMap[issue.priority?.toLowerCase()] || 0;
+                                const escalated = pMap[issue.adminEscalatedPriority?.toLowerCase()] || 0;
+                                return current > 0 && escalated > current;
+                              })() &&
+                              issue.status !== "resolved" &&
+                              issue.status !== "rejected" && (
+                                <span className="text-[10px] text-red-500 font-bold flex items-center gap-0.5 mt-0.5">
+                                  Escalated to {issue.adminEscalatedPriority.toLowerCase()}
+                                </span>
+                              )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          {issue.status !== "resolved" && issue.status !== "rejected" && issue.daysRemaining !== undefined ? (
+                            <div className="flex flex-col">
+                              <span className={cn(
+                                "font-bold text-sm",
+                                issue.daysRemaining <= 0 ? "text-red-600" :
+                                  issue.daysRemaining <= 2 ? "text-yellow-600" : "text-green-600"
+                              )}>
+                                {Math.ceil(issue.daysRemaining)} days
+                              </span>
+                              <span className="text-[10px] text-muted-foreground">
+                                {issue.slaStatus}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">-</span>
+                          )}
                         </td>
                         <td className="px-6 py-4 text-right">
                           <DropdownMenu>
@@ -554,7 +646,7 @@ const ManageIssues = () => {
         onClose={() => setResolveIssue(null)}
         onResolve={handleResolveConfirm}
       />
-    </div>
+    </div >
   );
 };
 

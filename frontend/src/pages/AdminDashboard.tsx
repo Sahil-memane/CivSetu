@@ -78,6 +78,7 @@ const AdminDashboard = () => {
     pending: 0,
     inProgress: 0,
     resolvedToday: 0,
+    slaBreaches: 0,
   });
 
   const handleLogout = async () => {
@@ -126,7 +127,7 @@ const AdminDashboard = () => {
 
           // Calculate Stats
           const pending = allIssues.filter(
-            (i: any) => i.status === "pending"
+            (i: any) => i.status === "pending" || i.status === "escalated"
           ).length;
           const inProgress = allIssues.filter(
             (i: any) => i.status === "in-progress"
@@ -141,7 +142,9 @@ const AdminDashboard = () => {
             total: allIssues.length,
             pending,
             inProgress,
-            resolvedToday: resolved, // Using total resolved for now as mock replacement
+
+            resolvedToday: resolved,
+            slaBreaches: allIssues.filter((i: any) => i.slaStatus === "BREACHED").length,
           });
         }
       } catch (error) {
@@ -180,6 +183,13 @@ const AdminDashboard = () => {
       change: "Total",
       icon: CheckCircle2,
       color: "bg-success/10 text-success",
+    },
+    {
+      label: "SLA Breaches",
+      value: stats.slaBreaches.toLocaleString(),
+      change: "Critical",
+      icon: AlertTriangle,
+      color: "bg-destructive/10 text-destructive",
     },
   ];
 

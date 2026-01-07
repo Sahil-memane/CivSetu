@@ -162,6 +162,22 @@ export function IssueDetailModal({
                       {issue.status}
                     </Badge>
                   </div>
+                  {/* SLA Info */}
+                  {issue.slaStatus && issue.status !== "resolved" && issue.status !== "rejected" && (
+                    <div className="flex flex-col items-end">
+                      <span className={cn(
+                        "text-[10px] font-bold px-1.5 py-0.5 rounded border",
+                        issue.slaStatus === "ON_TRACK" ? "bg-green-50 text-green-700 border-green-200" :
+                          issue.slaStatus === "AT_RISK" ? "bg-yellow-50 text-yellow-700 border-yellow-200" :
+                            "bg-red-50 text-red-700 border-red-200"
+                      )}>
+                        {Math.ceil(issue.daysRemaining || 0)} days left
+                      </span>
+                      <span className="text-[9px] text-muted-foreground">
+                        Target: {new Date(issue.slaEndDate).toLocaleDateString()}
+                      </span>
+                    </div>
+                  )}
                   {onViewOnMap && (
                     <button
                       onClick={onViewOnMap}
@@ -190,26 +206,26 @@ export function IssueDetailModal({
                 {(issue.actionTaken ||
                   issue.status === "in-progress" ||
                   issue.status === "resolved") && (
-                  <div
-                    onClick={() => setViewingDetail("plan")}
-                    className="group cursor-pointer bg-blue-50 hover:bg-blue-100/80 border border-blue-200 p-4 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md flex items-center justify-between"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-blue-100 rounded-full group-hover:bg-blue-200 transition-colors">
-                        <Settings className="w-5 h-5 text-blue-700" />
+                    <div
+                      onClick={() => setViewingDetail("plan")}
+                      className="group cursor-pointer bg-blue-50 hover:bg-blue-100/80 border border-blue-200 p-4 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-blue-100 rounded-full group-hover:bg-blue-200 transition-colors">
+                          <Settings className="w-5 h-5 text-blue-700" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-blue-900 text-sm">
+                            Official Response Plan
+                          </h3>
+                          <p className="text-xs text-blue-700 mt-0.5">
+                            View action plan, staff & proofs
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="font-bold text-blue-900 text-sm">
-                          Official Response Plan
-                        </h3>
-                        <p className="text-xs text-blue-700 mt-0.5">
-                          View action plan, staff & proofs
-                        </p>
-                      </div>
+                      <ExternalLink className="w-4 h-4 text-blue-400 group-hover:text-blue-600 transition-colors" />
                     </div>
-                    <ExternalLink className="w-4 h-4 text-blue-400 group-hover:text-blue-600 transition-colors" />
-                  </div>
-                )}
+                  )}
 
                 {issue.status === "resolved" && (
                   <div

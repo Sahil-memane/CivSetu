@@ -35,7 +35,20 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok", message: "Backend is healthy" });
 });
 
+// Background Jobs
+const cron = require("node-cron");
+const { checkSLAStatus } = require("./services/slaService");
+
+// Run SLA check every 12 hours
+cron.schedule("0 */12 * * *", () => {
+  console.log("⏰ Running scheduled SLA check...");
+  checkSLAStatus();
+});
+
 // Start Server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+
+  // Run an immediate check on startup (optional, good for dev)
+  checkSLAStatus();
 });

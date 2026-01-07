@@ -42,12 +42,40 @@ const navLinks = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
 ];
 
+import { db } from "@/lib/firebase";
+import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
+
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [googleOffset, setGoogleOffset] = useState(0);
+  const [notifications, setNotifications] = useState<any[]>([]);
   const location = useLocation();
   const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
+
+  // Notification Listener
+  useEffect(() => {
+    // Check for user ID (supporting both uid and id properties if typo in type)
+    const userId = (user as any)?.uid || (user as any)?.id;
+    if (!userId) return;
+
+    const q = query(
+      collection(db, "users", userId, "notifications"),
+      orderBy("createdAt", "desc")
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const notifs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setNotifications(notifs);
+    }, (error) => {
+      console.error("Error fetching notifications:", error);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
 
   useEffect(() => {
     // Monitor Google Translate banner adding 'top' to body
@@ -255,39 +283,47 @@ export function Navbar() {
                       </SheetDescription>
                     </SheetHeader>
                     <div className="mt-6 space-y-4">
-                      <div className="p-4 bg-destructive/5 rounded-xl border border-destructive/20 relative overflow-hidden">
-                        <div className="absolute top-0 right-0 p-2 opacity-10">
-                          <AlertTriangle className="w-16 h-16 text-destructive" />
+                      {notifications.length === 0 ? (
+                        <div className="text-center text-muted-foreground py-8">
+                          <Bell className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                          <p>No new notifications</p>
                         </div>
-                        <div className="flex items-center gap-2 text-destructive mb-2 relative z-10">
-                          <AlertTriangle className="w-4 h-4" />
-                          <span className="font-semibold text-sm">
-                            SLA Breach Alert
-                          </span>
-                        </div>
-                        <p className="text-sm text-foreground relative z-10">
-                          <strong>5 issues</strong> are approaching their SLA
-                          deadline. Immediate action is required.
-                        </p>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="mt-3 w-full border-destructive/30 text-destructive hover:bg-destructive/10"
-                        >
-                          View At-Risk Issues
-                        </Button>
-                      </div>
-                      <div className="p-4 bg-muted/30 rounded-xl border border-border/50">
-                        <div className="flex items-center gap-2 mb-1">
-                          <CheckCircle2 className="w-4 h-4 text-success" />
-                          <span className="font-medium text-sm">
-                            System Update
-                          </span>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          Dashboard metrics updated successfully.
-                        </p>
-                      </div>
+                      ) : (
+                        notifications.map((notif: any) => (
+                          <div key={notif.id} className={cn(
+                            "p-4 rounded-xl border relative overflow-hidden transition-all",
+                            notif.type === 'SLA_BREACH' ? "bg-destructive/5 border-destructive/20" : "bg-muted/30 border-border/50"
+                          )}>
+                            {notif.type === 'SLA_BREACH' && (
+                              <div className="absolute top-0 right-0 p-2 opacity-10">
+                                <AlertTriangle className="w-16 h-16 text-destructive" />
+                              </div>
+                            )}
+
+                            <div className="flex items-center gap-2 mb-1 relative z-10">
+                              {notif.type === 'SLA_BREACH' ? (
+                                <AlertTriangle className="w-4 h-4 text-destructive" />
+                              ) : notif.type === 'RESOLUTION' ? (
+                                <CheckCircle2 className="w-4 h-4 text-success" />
+                              ) : (
+                                <Bell className="w-4 h-4 text-primary" />
+                              )}
+                              <span className={cn("font-semibold text-sm",
+                                notif.type === 'SLA_BREACH' ? "text-destructive" : "text-foreground"
+                              )}>
+                                {notif.title}
+                              </span>
+                            </div>
+
+                            <p className="text-sm text-muted-foreground relative z-10">
+                              {notif.body}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground/50 mt-2 text-right">
+                              {new Date(notif.createdAt).toLocaleTimeString()}
+                            </p>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </SheetContent>
                 </Sheet>

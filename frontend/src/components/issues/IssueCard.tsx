@@ -19,7 +19,7 @@ export interface Issue {
   title: string;
   description: string;
   category: string;
-  status: "pending" | "in-progress" | "resolved" | "escalated";
+  status: "pending" | "in-progress" | "resolved" | "escalated" | "rejected";
   location: string;
   reportedAt: string;
   verifications: number;
@@ -44,7 +44,14 @@ export interface Issue {
   rejectedAt?: string;
   rejectionReason?: string;
   rejectionProofs?: string[];
+  // Survey System - Coordinates for clustering
   coordinates?: { lat: number; lng: number };
+  // SLA Fields
+  slaStatus?: "ON_TRACK" | "AT_RISK" | "BREACHED";
+  slaDays?: number;
+  daysRemaining?: number;
+  slaEndDate?: string;
+  adminEscalatedPriority?: string;
 }
 
 interface IssueCardProps {
@@ -57,6 +64,10 @@ const statusConfig = {
   "in-progress": { label: "In Progress", class: "status-in-progress" },
   resolved: { label: "Resolved", class: "status-resolved" },
   escalated: { label: "Escalated", class: "status-escalated" },
+  rejected: {
+    label: "Rejected",
+    class: "bg-destructive/10 text-destructive border-destructive/20",
+  },
 };
 
 const priorityConfig = {
@@ -66,6 +77,21 @@ const priorityConfig = {
   critical: {
     label: "Critical",
     class: "bg-destructive text-destructive-foreground",
+  },
+};
+
+const slaConfig: Record<string, { label: string; class: string }> = {
+  ON_TRACK: {
+    label: "On Track",
+    class: "bg-green-100 text-green-700 border-green-200",
+  },
+  AT_RISK: {
+    label: "At Risk",
+    class: "bg-yellow-100 text-yellow-700 border-yellow-200",
+  },
+  BREACHED: {
+    label: "Breached",
+    class: "bg-red-100 text-red-700 border-red-200",
   },
 };
 
@@ -197,6 +223,33 @@ export function IssueCard({ issue, onClick }: IssueCardProps) {
             {statusConfig[issue.status].label}
           </Badge>
         </div>
+
+        {/* SLA Status Bar (Only for specific statuses) */}
+        {issue.slaStatus &&
+          issue.status !== "resolved" &&
+          issue.status !== "rejected" && (
+            <div className="flex items-center gap-2 mb-3">
+              <Badge
+                variant="outline"
+                className={cn(
+                  "text-[10px] font-semibold border",
+                  slaConfig[issue.slaStatus]?.class
+                )}
+              >
+                <Clock className="w-3 h-3 mr-1" />
+                {issue.daysRemaining !== undefined && issue.daysRemaining <= 0
+                  ? `Overdue by ${Math.abs(
+                      Math.ceil(issue.daysRemaining)
+                    )} days`
+                  : `${Math.ceil(issue.daysRemaining || 0)} days left`}
+              </Badge>
+              {issue.slaStatus === "BREACHED" && (
+                <span className="text-[10px] font-bold text-red-500 animate-pulse">
+                  SLA BREACHED
+                </span>
+              )}
+            </div>
+          )}
 
         {/* Title & Description */}
         <h3 className="font-display font-semibold text-lg mb-2 line-clamp-2 group-hover:text-primary transition-colors flex-shrink-0">
