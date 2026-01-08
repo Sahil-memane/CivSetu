@@ -9,7 +9,7 @@ const { bucket } = require("../config/firebase");
  */
 router.get("/download-url", async (req, res) => {
   try {
-    const apkPath = "apk/CivSetu_app.apk";
+    const apkPath = "apk/CivSetu_Mobile_App.apk";
     const file = bucket.file(apkPath);
 
     // Check if file exists
@@ -30,7 +30,7 @@ router.get("/download-url", async (req, res) => {
     res.json({
       success: true,
       downloadUrl: url,
-      fileName: "CivSetu_app.apk",
+      fileName: "CivSetu_Mobile_App.apk",
       message: "Download URL generated successfully",
     });
   } catch (error) {
@@ -50,7 +50,7 @@ router.get("/download-url", async (req, res) => {
  */
 router.get("/info", async (req, res) => {
   try {
-    const apkPath = "apk/CivSetu_app.apk";
+    const apkPath = "apk/CivSetu_Mobile_App.apk";
     const file = bucket.file(apkPath);
 
     const [exists] = await file.exists();

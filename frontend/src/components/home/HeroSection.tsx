@@ -28,7 +28,7 @@ export function HeroSection() {
         // Create a temporary link and trigger download
         const link = document.createElement("a");
         link.href = data.downloadUrl;
-        link.download = data.fileName || "CivSetu_app.apk";
+        link.download = data.fileName || "CivSetu_Mobile_App.apk";
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);

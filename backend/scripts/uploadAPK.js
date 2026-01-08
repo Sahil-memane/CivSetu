@@ -16,8 +16,8 @@ const bucket = admin.storage().bucket();
 
 async function uploadAPK() {
   try {
-    const apkPath = path.join(__dirname, "../app_apk/CivSetu_app.apk");
-    const destination = "apk/CivSetu_app.apk";
+    const apkPath = path.join(__dirname, "../app_apk/CivSetu_Mobile_App.apk");
+    const destination = "apk/CivSetu_Mobile_App.apk";
 
     console.log("📱 Starting APK upload to Firebase Storage...");
     console.log(`   Local path: ${apkPath}`);
