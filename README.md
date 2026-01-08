@@ -15,6 +15,7 @@ CivSetu is a modern bridging platform designed to connect citizens with municipa
 - **Community Engagement**: Upvote (Agree), downvote (Disagree), and comment on issues to highlight community impact.
 - **Multilingual Support**: Real-time accessible translation into multiple Indian languages (Hindi, Marathi, Telugu, etc.) via Google Translate integration.
 - **Community Surveys**: Participate in targeted surveys created by authorities to provide feedback on civic issues in your area.
+- **Mobile App Access**: Download the official CivSetu Android app directly from the homepage for on-the-go reporting.
 - **SLA Tracking**: View Service Level Agreement (SLA) status for your issues - see days remaining and if resolution is on track, at risk, or breached.
 
 ### 🏛️ For Authorities (Admin)
@@ -169,6 +170,11 @@ CivSetu/
 - `POST /api/surveys/create` - Create a new survey targeting specific users.
 - `POST /api/surveys/:id/respond` - Submit citizen response to a survey.
 - `GET /api/surveys/:id/responses` - Fetch all responses for a survey (Admin only).
+
+### Mobile App (APK)
+
+- `GET /api/apk/download-url` - Get a signed download URL for the Android APK.
+- `GET /api/apk/info` - Get metadata (size, version) about the hosted APK.
 
 ## 🤝 Contributing
 

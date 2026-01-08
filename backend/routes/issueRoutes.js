@@ -6,7 +6,9 @@ const { uploadIssueFiles } = require("../middleware/uploadMiddleware");
 const { determinePriority } = require("../services/priorityEngine");
 const { detectDuplicateIssues } = require("../services/visionService");
 const { calculateSLA, getUpdatedSLAStatus } = require("../services/slaService");
-const { notifyCitizenOnResolution } = require("../services/notificationService");
+const {
+  notifyCitizenOnResolution,
+} = require("../services/notificationService");
 
 // Helper to upload to Firebase Storage
 const uploadToFirebase = async (file, folder) => {
@@ -117,7 +119,7 @@ router.post("/submit", verifyToken, uploadIssueFiles, async (req, res) => {
         reasoning: priorityResult.reasoning,
         analysis: priorityResult.analysis,
       },
-      ...slaDetails // Add SLA fields
+      ...slaDetails, // Add SLA fields
     };
 
     // Add issue to Firestore
@@ -170,7 +172,11 @@ router.get("/user", verifyToken, async (req, res) => {
       let issue = { id: doc.id, ...doc.data() };
 
       // LAZY MIGRATION: Check if SLA fields are missing
-      if (!issue.slaStatus && issue.status !== "resolved" && issue.status !== "rejected") {
+      if (
+        !issue.slaStatus &&
+        issue.status !== "resolved" &&
+        issue.status !== "rejected"
+      ) {
         // 1. Determine priority if missing (or use existing)
         const priority = issue.priority || "medium";
 
@@ -188,7 +194,9 @@ router.get("/user", verifyToken, async (req, res) => {
         const updates = getUpdatedSLAStatus(issue);
         if (updates) {
           issue = { ...issue, ...updates };
-          migrationPromises.push(db.collection("issues").doc(issue.id).update(updates));
+          migrationPromises.push(
+            db.collection("issues").doc(issue.id).update(updates)
+          );
         }
       }
 
@@ -197,7 +205,9 @@ router.get("/user", verifyToken, async (req, res) => {
 
     // Execute background updates
     if (migrationPromises.length > 0) {
-      Promise.all(migrationPromises).catch(err => console.error("Error in lazy migration/update:", err));
+      Promise.all(migrationPromises).catch((err) =>
+        console.error("Error in lazy migration/update:", err)
+      );
     }
 
     console.log(`✅ Found ${issues.length} issues for UID: ${uid}`);
@@ -225,23 +235,36 @@ router.get("/all", async (req, res) => {
     issuesSnapshot.forEach((doc) => {
       let issue = { id: doc.id, ...doc.data() };
 
-      if (!issue.slaStatus && issue.status !== "resolved" && issue.status !== "rejected") {
+      if (
+        !issue.slaStatus &&
+        issue.status !== "resolved" &&
+        issue.status !== "rejected"
+      ) {
         const priority = issue.priority || "medium";
         const slaDetails = calculateSLA(priority, issue.category);
         issue = { ...issue, ...slaDetails, priority };
-        migrationPromises.push(db.collection("issues").doc(issue.id).update({ ...slaDetails, priority }));
+        migrationPromises.push(
+          db
+            .collection("issues")
+            .doc(issue.id)
+            .update({ ...slaDetails, priority })
+        );
       } else if (issue.slaStatus) {
         const updates = getUpdatedSLAStatus(issue);
         if (updates) {
           issue = { ...issue, ...updates };
-          migrationPromises.push(db.collection("issues").doc(issue.id).update(updates));
+          migrationPromises.push(
+            db.collection("issues").doc(issue.id).update(updates)
+          );
         }
       }
       issues.push(issue);
     });
 
     if (migrationPromises.length > 0) {
-      Promise.all(migrationPromises).catch(err => console.error("Error in lazy migration/update (public view):", err));
+      Promise.all(migrationPromises).catch((err) =>
+        console.error("Error in lazy migration/update (public view):", err)
+      );
     }
 
     res.json({ issues });
@@ -495,7 +518,8 @@ router.post("/:id/resolve", verifyToken, uploadIssueFiles, async (req, res) => {
     const resolvedAt = new Date().toISOString();
     let resolvedWithinSLA = true;
     if (issueData.slaEndDate) {
-      resolvedWithinSLA = new Date(resolvedAt) <= new Date(issueData.slaEndDate);
+      resolvedWithinSLA =
+        new Date(resolvedAt) <= new Date(issueData.slaEndDate);
     }
 
     await issueRef.update({

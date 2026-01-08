@@ -13,6 +13,7 @@ const path = require("path");
 const authRoutes = require("./routes/authRoutes");
 const issueRoutes = require("./routes/issueRoutes");
 const surveyRoutes = require("./routes/surveyRoutes");
+const apkRoutes = require("./routes/apkRoutes");
 
 // Middleware
 app.use(cors());
@@ -26,6 +27,7 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use("/api/auth", authRoutes);
 app.use("/api/issues", issueRoutes);
 app.use("/api/surveys", surveyRoutes);
+app.use("/api/apk", apkRoutes);
 
 app.get("/", (req, res) => {
   res.send("API is running...");

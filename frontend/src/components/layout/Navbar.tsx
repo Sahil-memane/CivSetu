@@ -64,15 +64,19 @@ export function Navbar() {
       orderBy("createdAt", "desc")
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const notifs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setNotifications(notifs);
-    }, (error) => {
-      console.error("Error fetching notifications:", error);
-    });
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const notifs = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setNotifications(notifs);
+      },
+      (error) => {
+        console.error("Error fetching notifications:", error);
+      }
+    );
 
     return () => unsubscribe();
   }, [user]);
@@ -193,8 +197,10 @@ export function Navbar() {
           </div>
 
           {/* Desktop Actions */}
-          <div className="hidden md:flex items-center gap-4 z-20">
-            <GoogleTranslate />
+          <div className="hidden md:flex items-center gap-2 z-20">
+            <div className="mr-2">
+              <GoogleTranslate />
+            </div>
             {!isAuthenticated ? (
               <>
                 <Link to="/login">
@@ -290,27 +296,37 @@ export function Navbar() {
                         </div>
                       ) : (
                         notifications.map((notif: any) => (
-                          <div key={notif.id} className={cn(
-                            "p-4 rounded-xl border relative overflow-hidden transition-all",
-                            notif.type === 'SLA_BREACH' ? "bg-destructive/5 border-destructive/20" : "bg-muted/30 border-border/50"
-                          )}>
-                            {notif.type === 'SLA_BREACH' && (
+                          <div
+                            key={notif.id}
+                            className={cn(
+                              "p-4 rounded-xl border relative overflow-hidden transition-all",
+                              notif.type === "SLA_BREACH"
+                                ? "bg-destructive/5 border-destructive/20"
+                                : "bg-muted/30 border-border/50"
+                            )}
+                          >
+                            {notif.type === "SLA_BREACH" && (
                               <div className="absolute top-0 right-0 p-2 opacity-10">
                                 <AlertTriangle className="w-16 h-16 text-destructive" />
                               </div>
                             )}
 
                             <div className="flex items-center gap-2 mb-1 relative z-10">
-                              {notif.type === 'SLA_BREACH' ? (
+                              {notif.type === "SLA_BREACH" ? (
                                 <AlertTriangle className="w-4 h-4 text-destructive" />
-                              ) : notif.type === 'RESOLUTION' ? (
+                              ) : notif.type === "RESOLUTION" ? (
                                 <CheckCircle2 className="w-4 h-4 text-success" />
                               ) : (
                                 <Bell className="w-4 h-4 text-primary" />
                               )}
-                              <span className={cn("font-semibold text-sm",
-                                notif.type === 'SLA_BREACH' ? "text-destructive" : "text-foreground"
-                              )}>
+                              <span
+                                className={cn(
+                                  "font-semibold text-sm",
+                                  notif.type === "SLA_BREACH"
+                                    ? "text-destructive"
+                                    : "text-foreground"
+                                )}
+                              >
                                 {notif.title}
                               </span>
                             </div>
@@ -330,7 +346,7 @@ export function Navbar() {
 
                 {user?.role !== "official" && (
                   <Link to="/report">
-                    <Button variant="hero" size="sm" className="ml-2">
+                    <Button variant="hero" size="sm">
                       Report Issue
                     </Button>
                   </Link>
