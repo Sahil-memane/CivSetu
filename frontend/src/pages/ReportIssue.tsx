@@ -123,7 +123,7 @@ const ReportIssue = () => {
         submitData.append("voice", voiceFile, "voice-recording.webm");
       }
 
-      const response = await fetch("http://localhost:5000/api/issues/submit", {
+      const response = await fetch("/api/issues/submit", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,

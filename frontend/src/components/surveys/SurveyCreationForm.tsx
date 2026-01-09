@@ -83,7 +83,7 @@ export function SurveyCreationForm({
         targetUserIds: uniqueUserIds,
       };
 
-      const response = await fetch("http://localhost:5000/api/surveys/create", {
+      const response = await fetch("/api/surveys/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

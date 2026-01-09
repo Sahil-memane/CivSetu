@@ -29,7 +29,7 @@ const MapView = () => {
   useEffect(() => {
     const fetchAllIssues = async () => {
       try {
-        const response = await fetch("http://localhost:5000/api/issues/all");
+        const response = await fetch("/api/issues/all");
         if (response.ok) {
           const data = await response.json();
           const transformedIssues: Issue[] = data.issues.map((issue: any) => ({
@@ -46,7 +46,7 @@ const MapView = () => {
             imageUrl: issue.files?.images?.[0]
               ? issue.files.images[0].startsWith("http")
                 ? issue.files.images[0]
-                : `http://localhost:5000/${issue.files.images[0]}`
+                : `/${issue.files.images[0]}`
               : undefined,
             agrees: issue.agrees || [],
             disagrees: issue.disagrees || [],
@@ -104,7 +104,7 @@ const MapView = () => {
       if (!currentUser) return; // Should probably prompt login
       const token = await currentUser.getIdToken();
 
-      await fetch(`http://localhost:5000/api/issues/${id}/engage`, {
+      await fetch(`/api/issues/${id}/engage`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -159,7 +159,7 @@ const MapView = () => {
       const token = await currentUser.getIdToken();
 
       const res = await fetch(
-        `http://localhost:5000/api/issues/${id}/comment`,
+        `/api/issues/${id}/comment`,
         {
           method: "POST",
           headers: {

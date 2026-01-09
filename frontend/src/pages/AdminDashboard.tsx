@@ -89,7 +89,7 @@ const AdminDashboard = () => {
   useEffect(() => {
     const fetchIssues = async () => {
       try {
-        const response = await fetch("http://localhost:5000/api/issues/all");
+        const response = await fetch("/api/issues/all");
         if (response.ok) {
           const data = await response.json();
           let allIssues = data.issues || [];

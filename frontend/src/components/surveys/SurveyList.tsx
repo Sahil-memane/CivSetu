@@ -45,7 +45,7 @@ export function SurveyList() {
 
       // Fetch surveys targeted at THIS citizen
       const response = await fetch(
-        `http://localhost:5000/api/surveys?userId=${currentUserId}`,
+        `/api/surveys?userId=${currentUserId}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -81,7 +81,7 @@ export function SurveyList() {
     try {
       const token = await auth.currentUser?.getIdToken();
       const response = await fetch(
-        `http://localhost:5000/api/surveys/${selectedSurvey.id}/respond`,
+        `/api/surveys/${selectedSurvey.id}/respond`,
         {
           method: "POST",
           headers: {

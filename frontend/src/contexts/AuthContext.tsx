@@ -82,7 +82,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             const token = await firebaseUser.getIdToken();
 
             // Fetch user profile from Backend
-            const response = await fetch("http://localhost:5000/api/auth/me", {
+            const response = await fetch("/api/auth/me", {
               headers: {
                 Authorization: `Bearer ${token}`,
               },
@@ -135,7 +135,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       let userData: User | undefined;
 
       try {
-        const response = await fetch("http://localhost:5000/api/auth/me", {
+        const response = await fetch("/api/auth/me", {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -195,7 +195,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         department: data.department,
       };
 
-      await fetch("http://localhost:5000/api/auth/sync", {
+      await fetch("/api/auth/sync", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -261,7 +261,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       try {
         // Use sync endpoint for phone login as it might be a new user
-        const response = await fetch("http://localhost:5000/api/auth/sync", {
+        const response = await fetch("/api/auth/sync", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

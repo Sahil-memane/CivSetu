@@ -37,7 +37,7 @@ export const GoogleTranslate = () => {
       const script = document.createElement("script");
       script.id = "google-translate-script";
       script.src =
-        "//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit";
+        "https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit";
       script.async = true;
       document.body.appendChild(script);
     } else {

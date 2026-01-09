@@ -100,7 +100,7 @@ const ManageIssues = () => {
   useEffect(() => {
     const fetchIssues = async () => {
       try {
-        const response = await fetch("http://localhost:5000/api/issues/all");
+        const response = await fetch("/api/issues/all");
         if (response.ok) {
           const data = await response.json();
           let fetched = data.issues || [];
@@ -203,7 +203,7 @@ const ManageIssues = () => {
     try {
       const token = await auth.currentUser?.getIdToken();
       const response = await fetch(
-        `http://localhost:5000/api/issues/${planningIssue.id}/status`,
+        `/api/issues/${planningIssue.id}/status`,
         {
           method: "PUT",
           headers: {
@@ -245,7 +245,7 @@ const ManageIssues = () => {
     try {
       const token = await auth.currentUser?.getIdToken();
       const response = await fetch(
-        `http://localhost:5000/api/issues/${resolveIssue.id}/resolve`,
+        `/api/issues/${resolveIssue.id}/resolve`,
         {
           method: "POST",
           headers: {
@@ -288,7 +288,7 @@ const ManageIssues = () => {
     try {
       const token = await auth.currentUser?.getIdToken();
       const response = await fetch(
-        `http://localhost:5000/api/issues/${rejectIssue.id}/reject`,
+        `/api/issues/${rejectIssue.id}/reject`,
         {
           method: "POST",
           headers: {

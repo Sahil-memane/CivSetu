@@ -99,7 +99,7 @@ export function MediaCarousel({ media, onClose }: MediaCarouselProps) {
           src={
             item.url.startsWith("http")
               ? item.url
-              : `http://localhost:5000/${item.url}`
+              : `/${item.url}`
           }
           alt="Issue proof"
           className="w-full h-full object-contain"

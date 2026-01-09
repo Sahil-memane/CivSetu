@@ -40,7 +40,7 @@ const Dashboard = () => {
         }
 
         const token = await currentUser.getIdToken();
-        const response = await fetch("http://localhost:5000/api/issues/user", {
+        const response = await fetch("/api/issues/user", {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -62,7 +62,7 @@ const Dashboard = () => {
             imageUrl: issue.files?.images?.[0]
               ? issue.files.images[0].startsWith("http")
                 ? issue.files.images[0]
-                : `http://localhost:5000/${issue.files.images[0]}`
+                : `/${issue.files.images[0]}`
               : undefined,
             // Pass raw arrays for engagement logic
             agrees: issue.agrees || [],
@@ -123,7 +123,7 @@ const Dashboard = () => {
       if (!currentUser) return;
       const token = await currentUser.getIdToken();
 
-      await fetch(`http://localhost:5000/api/issues/${id}/engage`, {
+      await fetch(`/api/issues/${id}/engage`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -178,7 +178,7 @@ const Dashboard = () => {
       const token = await currentUser.getIdToken();
 
       const res = await fetch(
-        `http://localhost:5000/api/issues/${id}/comment`,
+        `/api/issues/${id}/comment`,
         {
           method: "POST",
           headers: {

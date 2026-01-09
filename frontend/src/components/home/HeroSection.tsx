@@ -20,7 +20,7 @@ export function HeroSection() {
     setIsDownloading(true);
     try {
       const response = await fetch(
-        "http://localhost:5000/api/apk/download-url"
+        "/api/apk/download-url"
       );
       const data = await response.json();
 

@@ -29,10 +29,6 @@ app.use("/api/issues", issueRoutes);
 app.use("/api/surveys", surveyRoutes);
 app.use("/api/apk", apkRoutes);
 
-app.get("/", (req, res) => {
-  res.send("API is running...");
-});
-
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", message: "Backend is healthy" });
 });
@@ -46,6 +42,20 @@ cron.schedule("0 */12 * * *", () => {
   console.log("⏰ Running scheduled SLA check...");
   checkSLAStatus();
 });
+
+// Serve static files (Frontend)
+const fs = require("fs");
+const publicPath = path.join(__dirname, "public");
+
+if (process.env.NODE_ENV === "production" || fs.existsSync(publicPath)) {
+  // Set static folder
+  app.use(express.static(publicPath));
+
+  // Any route not handled by API will match this and serve index.html
+  app.get(/(.*)/, (req, res) => {
+    res.sendFile(path.resolve(publicPath, "index.html"));
+  });
+}
 
 // Start Server
 app.listen(PORT, () => {

@@ -283,9 +283,7 @@
 }
 
 /* Specifically hide the span containing "Powered by" text if it exists as a separate element */
-.goog-te-gadget span {
-  display: none !important;
-}
+/* .goog-te-gadget span { display: none !important; } */
 
 /* Style the dropdown combo box */
 .goog-te-combo {

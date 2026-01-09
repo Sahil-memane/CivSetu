@@ -43,7 +43,7 @@ const AdminMapView = () => {
     try {
       // First, verify backend is reachable
       try {
-        const healthCheck = await fetch("http://localhost:5000/api/health");
+        const healthCheck = await fetch("/api/health");
         if (!healthCheck.ok) {
           toast.dismiss(toastId);
           toast.error("Backend health check failed. Is the server running?");
@@ -52,9 +52,7 @@ const AdminMapView = () => {
         console.log("✅ Backend health check passed");
       } catch (healthError) {
         toast.dismiss(toastId);
-        toast.error(
-          "Cannot reach backend at localhost:5000. Check if server is running."
-        );
+        toast.error("Cannot reach backend. Check if server is running.");
         console.error("Health check failed:", healthError);
         return;
       }
@@ -74,17 +72,14 @@ const AdminMapView = () => {
         return;
       }
 
-      console.log(
-        "Fetching surveys from:",
-        "http://localhost:5000/api/surveys"
-      );
+      console.log("Fetching surveys from:", "/api/surveys");
       console.log("Token:", userToken ? "Present" : "Missing");
 
       // Add timeout
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
-      const response = await fetch("http://localhost:5000/api/surveys", {
+      const response = await fetch("/api/surveys", {
         headers: { Authorization: `Bearer ${userToken}` },
         signal: controller.signal,
       });
@@ -144,12 +139,9 @@ const AdminMapView = () => {
       const userToken = await auth.currentUser?.getIdToken();
       console.log("Fetching responses for survey:", survey.id);
 
-      const response = await fetch(
-        `http://localhost:5000/api/surveys/${survey.id}/responses`,
-        {
-          headers: { Authorization: `Bearer ${userToken}` },
-        }
-      );
+      const response = await fetch(`/api/surveys/${survey.id}/responses`, {
+        headers: { Authorization: `Bearer ${userToken}` },
+      });
 
       if (response.ok) {
         const data = await response.json();
@@ -172,7 +164,7 @@ const AdminMapView = () => {
   useEffect(() => {
     const fetchIssues = async () => {
       try {
-        const response = await fetch("http://localhost:5000/api/issues/all");
+        const response = await fetch("/api/issues/all");
         if (response.ok) {
           const data = await response.json();
           // Transform if necessary, ensuring coordinates are present
