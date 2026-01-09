@@ -8,6 +8,8 @@ const { detectDuplicateIssues } = require("../services/visionService");
 const { calculateSLA, getUpdatedSLAStatus } = require("../services/slaService");
 const {
   notifyCitizenOnResolution,
+  notifyCitizenOnSubmission,
+  notifyCitizenOnStatusChange,
 } = require("../services/notificationService");
 
 // Helper to upload to Firebase Storage
@@ -131,6 +133,9 @@ router.post("/submit", verifyToken, uploadIssueFiles, async (req, res) => {
         priorityResult.confidence * 100
       )}% confidence)`
     );
+
+    // Notify Citizen of Submission
+    await notifyCitizenOnSubmission({ id: issueRef.id, ...issueData });
 
     // Step 4: Return response
     res.status(201).json({
@@ -439,6 +444,18 @@ router.put(
       const issueRef = db.collection("issues").doc(id);
       await issueRef.update(updateData);
 
+      // Notify Citizen of Status Change
+      try {
+        const doc = await issueRef.get();
+        if (doc.exists) {
+          // Fix: creating a full issue object with ID to avoid undefined error
+          const fullIssue = { id: doc.id, ...doc.data() };
+          await notifyCitizenOnStatusChange(fullIssue, status);
+        }
+      } catch (err) {
+        console.error("Error notifying status change:", err);
+      }
+
       res.json({
         message: "Issue status updated",
         planningDocs: uploadedDocUrls,
@@ -476,6 +493,17 @@ router.post(
         rejectedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
+
+      // Notify Citizen of Rejection
+      try {
+        const doc = await issueRef.get();
+        if (doc.exists) {
+          const fullIssue = { id: doc.id, ...doc.data() };
+          await notifyCitizenOnStatusChange(fullIssue, "rejected");
+        }
+      } catch (err) {
+        console.error("Error notifying rejection:", err);
+      }
 
       res.json({
         message: "Issue rejected",

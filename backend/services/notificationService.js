@@ -130,4 +130,66 @@ module.exports = {
   notifyCitizenOnResolution,
   notifyAdminOnBreach,
   sendNotification,
+  notifyCitizenOnBreach,
+  notifyCitizenOnSubmission,
+  notifyCitizenOnStatusChange,
 };
+
+/**
+ * Notify citizen when their issue breaches SLA
+ * @param {Object} issue - The issue document data
+ * @param {string} citizenFcmToken - Optional FCM token
+ */
+async function notifyCitizenOnBreach(issue, citizenFcmToken = null) {
+  const title = "Issue Delayed (SLA Breach)";
+  const body = `We are sorry, but your reported issue '${issue.title}' is taking longer than expected to resolve.`;
+
+  // Push Notification
+  if (citizenFcmToken) {
+    await sendNotification(citizenFcmToken, title, body, {
+      issueId: issue.id,
+      type: "SLA_BREACH",
+    });
+  }
+
+  // In-App Notification
+  await saveNotificationToDb(issue.uid, {
+    title,
+    body,
+    type: "SLA_BREACH",
+    data: { issueId: issue.id },
+  });
+}
+
+/**
+ * Notify citizen when they successfully submit an issue
+ * @param {Object} issue - The issue document data (must include uid, id, title)
+ */
+async function notifyCitizenOnSubmission(issue) {
+  const title = "Issue Reported Successfully";
+  const body = `Your issue '${issue.title}' has been successfully reported. Token ID: ${issue.id}`;
+
+  await saveNotificationToDb(issue.uid, {
+    title,
+    body,
+    type: "SUBMISSION",
+    data: { issueId: issue.id },
+  });
+}
+
+/**
+ * Notify citizen when their issue status changes
+ * @param {Object} issue - The issue document data
+ * @param {string} newStatus - The new status
+ */
+async function notifyCitizenOnStatusChange(issue, newStatus) {
+  const title = "Issue Status Updated";
+  const body = `Your reported issue '${issue.title}' is now ${newStatus}.`;
+
+  await saveNotificationToDb(issue.uid, {
+    title,
+    body,
+    type: "STATUS_CHANGE",
+    data: { issueId: issue.id, status: newStatus },
+  });
+}

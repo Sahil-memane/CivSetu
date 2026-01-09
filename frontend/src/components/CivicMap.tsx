@@ -8,7 +8,8 @@ import {
 } from "@vis.gl/react-google-maps";
 import { Issue } from "./issues/IssueCard";
 import { Button } from "./ui/button";
-import { ChevronRight } from "lucide-react";
+import { Badge } from "./ui/badge";
+import { ChevronRight, Clock, AlertTriangle } from "lucide-react";
 import { Cluster } from "@/utils/clustering";
 
 interface CivicMapProps {
@@ -214,6 +215,32 @@ export function CivicMap({
                   <h4 className="font-semibold text-sm mb-1">
                     {selectedMarker.title}
                   </h4>
+                  {selectedMarker.slaStatus && (
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] h-5 px-1.5 ${
+                          selectedMarker.slaStatus === "BREACHED"
+                            ? "bg-red-50 text-red-700 border-red-200"
+                            : selectedMarker.slaStatus === "AT_RISK"
+                            ? "bg-yellow-50 text-yellow-700 border-yellow-200"
+                            : "bg-green-50 text-green-700 border-green-200"
+                        }`}
+                      >
+                        {selectedMarker.slaStatus === "BREACHED" ? (
+                          <AlertTriangle className="w-3 h-3 mr-1" />
+                        ) : (
+                          <Clock className="w-3 h-3 mr-1" />
+                        )}
+                        {selectedMarker.daysRemaining !== undefined &&
+                        selectedMarker.daysRemaining <= 0
+                          ? `Overdue`
+                          : `${Math.ceil(
+                              selectedMarker.daysRemaining || 0
+                            )}d left`}
+                      </Badge>
+                    </div>
+                  )}
                   <p className="text-xs text-gray-600 line-clamp-2 mb-2">
                     {selectedMarker.description}
                   </p>

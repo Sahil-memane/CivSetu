@@ -49,6 +49,7 @@ export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [googleOffset, setGoogleOffset] = useState(0);
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const location = useLocation();
   const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
@@ -59,26 +60,51 @@ export function Navbar() {
     const userId = (user as any)?.uid || (user as any)?.id;
     if (!userId) return;
 
-    const q = query(
-      collection(db, "users", userId, "notifications"),
-      orderBy("createdAt", "desc")
-    );
+    console.log("🔔 Setting up notification listener for:", userId);
 
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const notifs = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setNotifications(notifs);
-      },
-      (error) => {
-        console.error("Error fetching notifications:", error);
-      }
-    );
+    try {
+      // Temporarily removed orderBy to rule out index issues.
+      // If this works, we will add it back and create the index.
+      const q = query(
+        collection(db, "users", userId, "notifications")
+        // orderBy("createdAt", "desc")
+      );
 
-    return () => unsubscribe();
+      const unsubscribe = onSnapshot(
+        q,
+        (snapshot) => {
+          console.log(
+            "🔔 Snapshot received. Docs count:",
+            snapshot.docs.length
+          );
+          const notifs = snapshot.docs.map((doc) => {
+            const data = doc.data();
+            console.log("   - Notif:", doc.id, data);
+            return {
+              id: doc.id,
+              ...data,
+            };
+          });
+
+          // Manually sort in client-side to avoid index error for now
+          notifs.sort((a: any, b: any) => {
+            return (
+              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            );
+          });
+
+          setNotifications(notifs);
+        },
+        (error) => {
+          console.error("❌ Error fetching notifications:", error);
+          setErrorMsg(error.message);
+        }
+      );
+
+      return () => unsubscribe();
+    } catch (err) {
+      console.error("❌ Error creating query:", err);
+    }
   }, [user]);
 
   useEffect(() => {
@@ -288,7 +314,7 @@ export function Navbar() {
                         Real-time alerts and system updates.
                       </SheetDescription>
                     </SheetHeader>
-                    <div className="mt-6 space-y-4">
+                    <div className="mt-6 space-y-4 h-full max-h-[calc(100vh-140px)] overflow-y-auto pr-2">
                       {notifications.length === 0 ? (
                         <div className="text-center text-muted-foreground py-8">
                           <Bell className="w-12 h-12 mx-auto mb-3 opacity-20" />
@@ -305,26 +331,35 @@ export function Navbar() {
                                 : "bg-muted/30 border-border/50"
                             )}
                           >
-                            {notif.type === "SLA_BREACH" && (
-                              <div className="absolute top-0 right-0 p-2 opacity-10">
+                            {/* ... Content ... */}
+                            <div className="absolute top-0 right-0 p-2 opacity-10">
+                              {notif.type === "SLA_BREACH" ? (
                                 <AlertTriangle className="w-16 h-16 text-destructive" />
-                              </div>
-                            )}
+                              ) : (
+                                <Bell className="w-16 h-16" />
+                              )}
+                            </div>
 
                             <div className="flex items-center gap-2 mb-1 relative z-10">
                               {notif.type === "SLA_BREACH" ? (
                                 <AlertTriangle className="w-4 h-4 text-destructive" />
                               ) : notif.type === "RESOLUTION" ? (
                                 <CheckCircle2 className="w-4 h-4 text-success" />
+                              ) : notif.type === "STATUS_CHANGE" ? (
+                                <div className="p-1 bg-blue-100 rounded-full">
+                                  <Bell className="w-3 h-3 text-blue-600" />
+                                </div>
+                              ) : notif.type === "SUBMISSION" ? (
+                                <div className="p-1 bg-green-100 rounded-full">
+                                  <CheckCircle2 className="w-3 h-3 text-green-600" />
+                                </div>
                               ) : (
                                 <Bell className="w-4 h-4 text-primary" />
                               )}
                               <span
                                 className={cn(
                                   "font-semibold text-sm",
-                                  notif.type === "SLA_BREACH"
-                                    ? "text-destructive"
-                                    : "text-foreground"
+                                  "text-foreground"
                                 )}
                               >
                                 {notif.title}

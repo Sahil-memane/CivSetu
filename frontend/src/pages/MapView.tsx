@@ -7,7 +7,7 @@ import { IssueCategoryFilter } from "@/components/issues/IssueCategoryFilter";
 import { IssueStatusFilter } from "@/components/issues/IssueStatusFilter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Filter, X, Loader2 } from "lucide-react";
+import { Search, Filter, X, Loader2, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { auth } from "@/lib/firebase";
 import { CivicMap } from "@/components/CivicMap";
@@ -22,7 +22,9 @@ const MapView = () => {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedStatus, setSelectedStatus] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+
   const [showFilters, setShowFilters] = useState(false);
+  const [showSlaBreachedOnly, setShowSlaBreachedOnly] = useState(false);
 
   useEffect(() => {
     const fetchAllIssues = async () => {
@@ -64,6 +66,11 @@ const MapView = () => {
             rejectedAt: issue.rejectedAt,
             rejectionReason: issue.rejectionReason,
             rejectionProofs: issue.rejectionProofs,
+            // SLA Fields
+            slaStatus: issue.slaStatus,
+            slaDays: issue.slaDays,
+            daysRemaining: issue.daysRemaining,
+            slaEndDate: issue.slaEndDate,
           }));
           setIssues(transformedIssues);
         }
@@ -192,7 +199,10 @@ const MapView = () => {
     const matchesSearch =
       issue.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       issue.location.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesStatus && matchesSearch;
+
+    const matchesSla = !showSlaBreachedOnly || issue.slaStatus === "BREACHED";
+
+    return matchesCategory && matchesStatus && matchesSearch && matchesSla;
   });
 
   const handleIssueSelect = (issue: Issue) => {
@@ -274,10 +284,22 @@ const MapView = () => {
                   <label className="text-sm font-medium text-muted-foreground mb-2 block">
                     Status
                   </label>
+
                   <IssueStatusFilter
                     value={selectedStatus}
                     onChange={setSelectedStatus}
                   />
+                </div>
+                <div className="flex items-end">
+                  <Button
+                    variant={showSlaBreachedOnly ? "destructive" : "outline"}
+                    size="sm"
+                    onClick={() => setShowSlaBreachedOnly(!showSlaBreachedOnly)}
+                    className="gap-2 rounded-full border-dashed"
+                  >
+                    <AlertTriangle className="w-4 h-4" />
+                    SLA Breached
+                  </Button>
                 </div>
               </div>
             </div>

@@ -83,6 +83,11 @@ const Dashboard = () => {
             rejectedAt: issue.rejectedAt,
             rejectionReason: issue.rejectionReason,
             rejectionProofs: issue.rejectionProofs,
+            // SLA Fields
+            slaStatus: issue.slaStatus,
+            slaDays: issue.slaDays,
+            daysRemaining: issue.daysRemaining,
+            slaEndDate: issue.slaEndDate,
           }));
           setUserIssues(transformedIssues);
         } else {
