@@ -1,8 +1,15 @@
 const { db } = require("../config/firebase");
-const fs = require("fs");
-const path = require("path");
 
-// 4 Citizens
+// ─────────────────────────────────────────────────────────────────────────────
+// restoreIssues.js
+// Re-adds the predefined sample issues back to Firebase WITHOUT deleting any
+// existing issues. Safe to run repeatedly — does not wipe the collection first.
+//
+// Document structure matches the Issue interface in:
+//   frontend/src/components/issues/IssueCard.tsx
+// ─────────────────────────────────────────────────────────────────────────────
+
+// 4 Citizens (same UIDs as the original seed so notifications land correctly)
 const citizens = [
   {
     uid: "9cyjqqxiqBfaUMFHRWghLWwOlbU2",
@@ -26,35 +33,65 @@ const citizens = [
   },
 ];
 
-// Create dummy files for proofs
-const uploadsDir = path.join(__dirname, "../uploads");
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+// ─── Helper ──────────────────────────────────────────────────────────────────
+/**
+ * Returns a random integer in [min, max] (inclusive).
+ */
+function randInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-// Generate some dummy filenames
-const dummyPhotos = [
-  "pothole_proof.jpg",
-  "garbage_proof.jpg",
-  "water_leak.jpg",
-];
-const dummyDocs = ["repair_request.pdf", "official_complaint.docx"];
+/**
+ * Builds SLA-aware dates for an issue so that statuses look natural:
+ *  - resolved / rejected → created 3-10 days ago (SLA always ON_TRACK / completed)
+ *  - active issues       → created within 0–80 % of their SLA window so they
+ *                           still have time left (ON_TRACK or AT_RISK at worst)
+ */
+function buildDates(issue) {
+  const priorityDays = { critical: 3, high: 7, medium: 14, low: 30 };
+  const slaDays = priorityDays[issue.priority] || 14;
 
-// Create the files if they don't exist
-dummyPhotos.forEach((f) => {
-  const filePath = path.join(uploadsDir, f);
-  if (!fs.existsSync(filePath))
-    fs.writeFileSync(filePath, "dummy image content");
-});
-dummyDocs.forEach((f) => {
-  const filePath = path.join(uploadsDir, f);
-  if (!fs.existsSync(filePath))
-    fs.writeFileSync(filePath, "dummy document content");
-});
+  let createdAt = new Date();
 
-// Sample issues data with Pune, India coordinates
+  if (issue.status === "resolved" || issue.status === "rejected") {
+    // Place creation 3–10 days in the past so resolution looks plausible
+    createdAt.setDate(createdAt.getDate() - randInt(3, 10));
+  } else {
+    // Keep within 80 % of the SLA window so the issue is not immediately overdue
+    const maxAge = Math.max(1, Math.floor(slaDays * 0.8));
+    createdAt.setDate(createdAt.getDate() - randInt(0, maxAge));
+  }
+
+  const slaEnd = new Date(createdAt);
+  slaEnd.setDate(slaEnd.getDate() + slaDays);
+
+  const now = new Date();
+  const diffMs = slaEnd.getTime() - now.getTime();
+  const daysRem = diffMs / (1000 * 3600 * 24);
+
+  let slaStatus = "ON_TRACK";
+  if (issue.status !== "resolved" && issue.status !== "rejected") {
+    if (daysRem < 0) slaStatus = "BREACHED";
+    else if (daysRem < 2) slaStatus = "AT_RISK";
+  }
+
+  // resolvedAt — slightly after creation, never in the future
+  let resolvedAt = null;
+  if (issue.status === "resolved") {
+    const r = new Date(createdAt);
+    r.setDate(r.getDate() + Math.min(slaDays, randInt(1, 3)));
+    if (r > now) r.setTime(now.getTime() - 3600 * 1000); // cap at 1 h ago
+    resolvedAt = r.toISOString();
+  }
+
+  return { createdAt, slaEnd, slaDays, daysRem, slaStatus, resolvedAt };
+}
+
+// ─── Sample Issues ────────────────────────────────────────────────────────────
+// All 14 issues from the original seedIssues.js, preserved exactly.
+// Fields mirror the Issue interface from IssueCard.tsx.
 const sampleIssues = [
-  // POTHOLE issues
+  // ── POTHOLE ────────────────────────────────────────────────────────────────
   {
     category: "pothole",
     title: "Large pothole on MG Road causing accidents",
@@ -62,7 +99,7 @@ const sampleIssues = [
       "A deep pothole has formed near the traffic signal. Multiple vehicles have been damaged. Urgent repair needed.",
     location: "18.582733, 73.806843",
     priority: "high",
-    status: "in-progress", // Changed based on planning doc
+    status: "in-progress",
     files: {
       images: ["uploads/pothole_proof.jpg"],
       documents: [],
@@ -70,7 +107,7 @@ const sampleIssues = [
     },
     planningDocs: [
       "uploads/1767979150622-262046323-Pothole_Near_School_Implementation_Plan.pdf",
-    ], // Associated plan
+    ],
     staffAllocated: "Road Maintenance Team A",
     resourcesUsed: "Asphalt, heavy roller",
   },
@@ -108,7 +145,7 @@ const sampleIssues = [
     actionTaken: "Site inspected, repair scheduled",
   },
 
-  // WATER issues
+  // ── WATER ──────────────────────────────────────────────────────────────────
   {
     category: "water",
     title: "Water pipe burst flooding the street",
@@ -116,7 +153,7 @@ const sampleIssues = [
       "Major water leak from underground pipe. Water flowing continuously for 2 days. Wastage of water.",
     location: "18.516726, 73.856255",
     priority: "critical",
-    status: "resolved", // Has resolution proofs
+    status: "resolved",
     files: {
       images: ["uploads/water_pipe_burst.jpg"],
       documents: [
@@ -137,7 +174,6 @@ const sampleIssues = [
       "uploads/pipes_fixed1.jpg",
     ],
     resolutionRemarks: "Pipe replaced and leak sealed. Area cleaned up.",
-    resolvedAt: new Date().toISOString(),
   },
   {
     category: "water",
@@ -158,7 +194,7 @@ const sampleIssues = [
     staffAllocated: "Water Works Dept",
   },
 
-  // GARBAGE issues
+  // ── GARBAGE ────────────────────────────────────────────────────────────────
   {
     category: "garbage",
     title: "Overflowing garbage bins attracting stray animals",
@@ -178,7 +214,6 @@ const sampleIssues = [
       "uploads/Garbage_Collection_Issue_Resolution_Report_CivSetu.pdf",
     ],
     resolutionRemarks: "Garbage cleared and bins sanitized.",
-    resolvedAt: new Date().toISOString(),
   },
   {
     category: "garbage",
@@ -191,7 +226,7 @@ const sampleIssues = [
     files: {
       images: ["uploads/illegal_dumping.jpg", "uploads/illegal_dumping2.jpg"],
       documents: [],
-      voice: "uploads/dummy_voice.webm", // Using existing dummy for now as no specific name provided
+      voice: "uploads/dummy_voice.webm",
     },
     planningDocs: [
       "uploads/1767703860369-134943167-Illegal_Dumping_Implementation_Strategy_CivSetu.pdf",
@@ -208,13 +243,13 @@ const sampleIssues = [
     priority: "medium",
     status: "pending",
     files: {
-      images: ["uploads/stray_animals.jpg"], // reusing stray animals for general garbage issue
+      images: ["uploads/stray_animals.jpg"],
       documents: [],
       voice: null,
     },
   },
 
-  // STREETLIGHT issues
+  // ── STREETLIGHT ────────────────────────────────────────────────────────────
   {
     category: "streetlight",
     title: "Street lights not working for a week",
@@ -236,7 +271,7 @@ const sampleIssues = [
       "Light pole damaged and hanging dangerously. Could fall and cause injury.",
     location: "18.489395, 73.827209",
     priority: "critical",
-    status: "in-progress", // Assumed inspection done
+    status: "in-progress",
     files: {
       images: [],
       documents: [],
@@ -247,7 +282,7 @@ const sampleIssues = [
     ],
   },
 
-  // DRAINAGE issues
+  // ── DRAINAGE ───────────────────────────────────────────────────────────────
   {
     category: "drainage",
     title: "Blocked drainage causing waterlogging",
@@ -277,7 +312,7 @@ const sampleIssues = [
     },
   },
 
-  // ROAD issues
+  // ── ROAD ───────────────────────────────────────────────────────────────────
   {
     category: "road",
     title: "Road surface completely damaged",
@@ -307,7 +342,7 @@ const sampleIssues = [
     },
   },
 
-  // OTHER issues
+  // ── OTHER ──────────────────────────────────────────────────────────────────
   {
     category: "other",
     title: "Illegal parking blocking road",
@@ -324,73 +359,63 @@ const sampleIssues = [
   },
 ];
 
-async function seedDatabase() {
+// ─── Main ─────────────────────────────────────────────────────────────────────
+async function restoreIssues() {
   try {
-    console.log("🌱 Starting database seeding...");
+    console.log("🔄 Starting issue restore (non-destructive)...");
+    console.log(`   Issues to restore: ${sampleIssues.length}`);
 
-    // Step 1: Clear existing issues
-    console.log("🗑️  Clearing existing issues...");
-    const existingIssues = await db.collection("issues").get();
-    const deletePromises = existingIssues.docs.map((doc) => doc.ref.delete());
-    await Promise.all(deletePromises);
-    console.log(`   Deleted ${existingIssues.size} existing issues`);
-
-    // Step 2: Create sample issues
-    console.log("📝 Creating sample issues...");
     const issuePromises = sampleIssues.map((issue) => {
-      // Randomly assign to a citizen
-      const citizen = citizens[Math.floor(Math.random() * citizens.length)];
+      // Randomly assign a citizen
+      const citizen = citizens[randInt(0, citizens.length - 1)];
 
-      // Random date within last 30 days
-      const daysAgo = Math.floor(Math.random() * 30);
-      const createdAt = new Date();
-      createdAt.setDate(createdAt.getDate() - daysAgo);
+      // Build SLA-aware dates
+      const { createdAt, slaEnd, slaDays, daysRem, slaStatus, resolvedAt } =
+        buildDates(issue);
 
-      // Calculate SLA details
-      const priorityDays = {
-        critical: 3,
-        high: 7,
-        medium: 14,
-        low: 30,
-      };
-      const slDays = priorityDays[issue.priority] || 14;
-      const slaEnd = new Date(createdAt);
-      slaEnd.setDate(slaEnd.getDate() + slDays);
-
-      const today = new Date();
-      const diffTime = slaEnd.getTime() - today.getTime();
-      const daysRem = diffTime / (1000 * 3600 * 24);
-
-      let slaStat = "ON_TRACK";
-      if (issue.status !== "resolved" && issue.status !== "rejected") {
-        if (daysRem < 0) slaStat = "BREACHED";
-        else if (daysRem < 2) slaStat = "AT_RISK";
-      }
-
-      // Parse coordinates from location string "lat, lng"
+      // Parse coordinates from "lat, lng" string
       const [latStr, lngStr] = issue.location.split(",").map((s) => s.trim());
 
+      // ── Core issue document (matches Issue interface in IssueCard.tsx) ──────
       const issueData = {
-        ...issue,
+        // Identity & Classification
         uid: citizen.uid,
-        createdAt: createdAt.toISOString(),
-        updatedAt: createdAt.toISOString(),
-        reportedAt: createdAt.toISOString(), // Added field
-        verifications: Math.floor(Math.random() * 10),
-        files: issue.files, // Use the files defined in sampleIssues
+        category: issue.category,
+        title: issue.title,
+        description: issue.description,
+        location: issue.location,
+        priority: issue.priority,
+        status: issue.status,
+
+        // Files (images / documents / voice)
+        files: issue.files,
+
+        // Engagement
+        verifications: randInt(0, 9),
         agrees: [],
         disagrees: [],
         comments: [],
+
+        // Geospatial
         coordinates: {
           lat: parseFloat(latStr),
           lng: parseFloat(lngStr),
         },
-        slaStatus: slaStat,
-        slaDays: slDays,
+
+        // Timestamps
+        createdAt: createdAt.toISOString(),
+        updatedAt: createdAt.toISOString(),
+        reportedAt: createdAt.toISOString(),
+
+        // SLA Fields
+        slaStatus: slaStatus,
+        slaDays: slaDays,
         daysRemaining: daysRem,
         slaEndDate: slaEnd.toISOString(),
+
+        // AI Analysis (mock)
         aiAnalysis: {
-          confidence: 0.7 + Math.random() * 0.25,
+          confidence: parseFloat((0.7 + Math.random() * 0.25).toFixed(3)),
           reasoning: `AI detected ${issue.priority} priority based on ${issue.category} severity and description analysis.`,
           analysis: {
             baseline: issue.priority.toUpperCase(),
@@ -399,21 +424,28 @@ async function seedDatabase() {
         },
       };
 
-      // Add optional fields if they exist in sample data
+      // ── Optional Official-Response Fields ────────────────────────────────
       if (issue.planningDocs) issueData.planningDocs = issue.planningDocs;
+      if (issue.staffAllocated) issueData.staffAllocated = issue.staffAllocated;
+      if (issue.actionTaken) issueData.actionTaken = issue.actionTaken;
+      if (issue.resourcesUsed) issueData.resourcesUsed = issue.resourcesUsed;
+
+      // ── Optional Resolution Fields ───────────────────────────────────────
       if (issue.resolutionProofs)
         issueData.resolutionProofs = issue.resolutionProofs;
       if (issue.resolutionRemarks)
         issueData.resolutionRemarks = issue.resolutionRemarks;
-      if (issue.staffAllocated) issueData.staffAllocated = issue.staffAllocated;
-      if (issue.actionTaken) issueData.actionTaken = issue.actionTaken;
-      if (issue.resourcesUsed) issueData.resourcesUsed = issue.resourcesUsed;
-      if (issue.resolvedAt) issueData.resolvedAt = issue.resolvedAt;
+      if (resolvedAt) issueData.resolvedAt = resolvedAt;
 
+      // ── Write to Firestore then add notifications ────────────────────────
       return db
         .collection("issues")
         .add(issueData)
         .then(async (docRef) => {
+          console.log(
+            `   ✅ [${issue.category.padEnd(11)}] ${issue.title.substring(0, 50)}…  → ${docRef.id}`,
+          );
+
           // Notification 1: Submission
           try {
             await db
@@ -445,7 +477,7 @@ async function seedDatabase() {
                 });
             }
 
-            // Notification 3: Resolution (if resolved)
+            // Notification 3: Resolution
             if (issue.status === "resolved") {
               await db
                 .collection("users")
@@ -462,8 +494,8 @@ async function seedDatabase() {
             }
           } catch (notifError) {
             console.error(
-              `Error creating notifications for issue ${docRef.id}:`,
-              notifError,
+              `   ⚠️  Notification error for ${docRef.id}:`,
+              notifError.message,
             );
           }
 
@@ -471,19 +503,12 @@ async function seedDatabase() {
         });
     });
 
-    const createdIssues = await Promise.all(issuePromises);
-    console.log(`✅ Created ${createdIssues.length} sample issues`);
+    const created = await Promise.all(issuePromises);
+    console.log(
+      `\n✅ Restore complete — ${created.length} issues added to Firebase.`,
+    );
 
-    // Step 3: Display summary
-    console.log("\n📊 Summary by citizen:");
-    for (const citizen of citizens) {
-      const userIssues = await db
-        .collection("issues")
-        .where("uid", "==", citizen.uid)
-        .get();
-      console.log(`   ${citizen.name}: ${userIssues.size} issues`);
-    }
-
+    // ── Summary ─────────────────────────────────────────────────────────────
     console.log("\n📊 Summary by category:");
     const categories = [
       "pothole",
@@ -494,20 +519,21 @@ async function seedDatabase() {
       "road",
       "other",
     ];
-    for (const category of categories) {
-      const categoryIssues = await db
+    for (const cat of categories) {
+      const snap = await db
         .collection("issues")
-        .where("category", "==", category)
+        .where("category", "==", cat)
         .get();
-      console.log(`   ${category}: ${categoryIssues.size} issues`);
+      console.log(
+        `   ${cat.padEnd(12)}: ${snap.size} total issues in Firebase`,
+      );
     }
 
-    console.log("\n✅ Database seeding completed successfully!");
     process.exit(0);
-  } catch (error) {
-    console.error("❌ Error seeding database:", error);
+  } catch (err) {
+    console.error("❌ Restore failed:", err);
     process.exit(1);
   }
 }
 
-seedDatabase();
+restoreIssues();

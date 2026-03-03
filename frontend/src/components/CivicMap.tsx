@@ -108,6 +108,17 @@ export function CivicMap({
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
   const [selectedMarker, setSelectedMarker] = useState<Issue | null>(null);
 
+  // ⚠️ MUST be before any early returns — React Rules of Hooks
+  // Sync internal selection with prop whenever selectedIssueId changes
+  useEffect(() => {
+    if (selectedIssueId) {
+      const issue = issues.find((i) => i.id === selectedIssueId);
+      if (issue) setSelectedMarker(issue);
+    } else {
+      setSelectedMarker(null);
+    }
+  }, [selectedIssueId, issues]);
+
   // If apiKey is missing, show a friendly error or fallback
   if (!apiKey) {
     return (
@@ -123,16 +134,6 @@ export function CivicMap({
       </div>
     );
   }
-
-  // Sync internal selection with prop if needed
-  useEffect(() => {
-    if (selectedIssueId) {
-      const issue = issues.find((i) => i.id === selectedIssueId);
-      if (issue) setSelectedMarker(issue);
-    } else {
-      setSelectedMarker(null);
-    }
-  }, [selectedIssueId, issues]);
 
   return (
     <div className="flex justify-center w-full">
@@ -223,8 +224,8 @@ export function CivicMap({
                           selectedMarker.slaStatus === "BREACHED"
                             ? "bg-red-50 text-red-700 border-red-200"
                             : selectedMarker.slaStatus === "AT_RISK"
-                            ? "bg-yellow-50 text-yellow-700 border-yellow-200"
-                            : "bg-green-50 text-green-700 border-green-200"
+                              ? "bg-yellow-50 text-yellow-700 border-yellow-200"
+                              : "bg-green-50 text-green-700 border-green-200"
                         }`}
                       >
                         {selectedMarker.slaStatus === "BREACHED" ? (
@@ -236,7 +237,7 @@ export function CivicMap({
                         selectedMarker.daysRemaining <= 0
                           ? `Overdue`
                           : `${Math.ceil(
-                              selectedMarker.daysRemaining || 0
+                              selectedMarker.daysRemaining || 0,
                             )}d left`}
                       </Badge>
                     </div>

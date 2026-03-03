@@ -3,6 +3,12 @@ node_modules
 .env
 backend/node_modules
 frontend/node_modules
+frontend/.env
+frontend/.env.*
+# SECURITY: never bake the service account key into the image
+backend/serviceAccountKey.json
+backend/.env
+backend/.env.*
 .DS_Store
 dist
 coverage

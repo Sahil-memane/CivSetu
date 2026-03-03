@@ -11,6 +11,7 @@ import { Search, Filter, X, Loader2, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { auth } from "@/lib/firebase";
 import { CivicMap } from "@/components/CivicMap";
+import { MapErrorBoundary } from "@/components/MapErrorBoundary";
 
 const MapView = () => {
   const { user } = useAuth();
@@ -36,13 +37,20 @@ const MapView = () => {
             id: issue.id,
             title: issue.title,
             description: issue.description,
-            category: issue.category,
-            status: issue.status,
+            // Normalize category to lowercase
+            category: (issue.category || "other").toLowerCase(),
+            // Normalize status to lowercase — Firebase may store "Pending", "Resolved" etc.
+            status: (
+              issue.status || "pending"
+            ).toLowerCase() as Issue["status"],
             location: issue.location,
             coordinates: issue.coordinates,
             reportedAt: formatDate(issue.createdAt),
             verifications: issue.verifications || 0,
-            priority: issue.priority,
+            // Normalize priority to lowercase — Firebase may store "Medium", "High" etc.
+            priority: (
+              issue.priority || "medium"
+            ).toLowerCase() as Issue["priority"],
             imageUrl: issue.files?.images?.[0]
               ? issue.files.images[0].startsWith("http")
                 ? issue.files.images[0]
@@ -54,7 +62,6 @@ const MapView = () => {
             files: issue.files,
 
             uid: issue.uid,
-            // Map new fields
             actionTaken: issue.actionTaken,
             staffAllocated: issue.staffAllocated,
             resourcesUsed: issue.resourcesUsed,
@@ -145,7 +152,7 @@ const MapView = () => {
             return updated;
           }
           return issue;
-        })
+        }),
       );
     } catch (err) {
       console.error("Engagement failed", err);
@@ -158,17 +165,14 @@ const MapView = () => {
       if (!currentUser) return;
       const token = await currentUser.getIdToken();
 
-      const res = await fetch(
-        `/api/issues/${id}/comment`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ text }),
-        }
-      );
+      const res = await fetch(`/api/issues/${id}/comment`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ text }),
+      });
 
       if (res.ok) {
         const data = await res.json();
@@ -183,7 +187,7 @@ const MapView = () => {
               return updated;
             }
             return issue;
-          })
+          }),
         );
       }
     } catch (err) {
@@ -319,12 +323,14 @@ const MapView = () => {
             <>
               {/* Full Width Map Section */}
               <div className="w-full">
-                <CivicMap
-                  issues={issues}
-                  onIssueSelect={handleIssueSelect}
-                  selectedIssueId={selectedIssue?.id}
-                  focusTrigger={mapFocusTrigger}
-                />
+                <MapErrorBoundary>
+                  <CivicMap
+                    issues={issues}
+                    onIssueSelect={handleIssueSelect}
+                    selectedIssueId={selectedIssue?.id}
+                    focusTrigger={mapFocusTrigger}
+                  />
+                </MapErrorBoundary>
               </div>
 
               {/* Issue Grid Section */}

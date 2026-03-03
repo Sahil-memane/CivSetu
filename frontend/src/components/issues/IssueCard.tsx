@@ -106,6 +106,15 @@ const categoryIcons: Record<string, string> = {
 };
 
 export function IssueCard({ issue, onClick }: IssueCardProps) {
+  // Normalize to lowercase defensively — Firebase docs may store capitalized values
+  const normalizedPriority = (
+    issue.priority || "medium"
+  ).toLowerCase() as Issue["priority"];
+  const normalizedStatus = (
+    issue.status || "pending"
+  ).toLowerCase() as Issue["status"];
+  const normalizedCategory = (issue.category || "other").toLowerCase();
+
   const images = issue.files?.images || [];
   const voice = issue.files?.voice;
   const documents = issue.files?.documents || [];
@@ -113,15 +122,15 @@ export function IssueCard({ issue, onClick }: IssueCardProps) {
   // Helper to detect media types
   const hasVoice = !!voice;
   const hasImages = images.some((url: string) =>
-    /\.(jpg|jpeg|png|webp|gif)(\?.*)?$/i.test(url)
+    /\.(jpg|jpeg|png|webp|gif)(\?.*)?$/i.test(url),
   );
   const hasDocs = documents.some((url: string) =>
-    /\.(pdf|doc|docx|txt)(\?.*)?$/i.test(url)
+    /\.(pdf|doc|docx|txt)(\?.*)?$/i.test(url),
   );
 
   // Determine main preview
   const previewImage = images.find((url: string) =>
-    /\.(jpg|jpeg|png|webp|gif)(\?.*)?$/i.test(url)
+    /\.(jpg|jpeg|png|webp|gif)(\?.*)?$/i.test(url),
   );
 
   const agreeCount = issue.agrees?.length || 0;
@@ -170,13 +179,17 @@ export function IssueCard({ issue, onClick }: IssueCardProps) {
           <Badge
             className={cn(
               "text-xs font-medium shadow-sm backdrop-blur-sm",
-              priorityConfig[issue.priority].class
+              (priorityConfig[normalizedPriority] ?? priorityConfig.medium)
+                .class,
             )}
           >
-            {issue.priority === "critical" && (
+            {normalizedPriority === "critical" && (
               <AlertTriangle className="w-3 h-3 mr-1" />
             )}
-            {priorityConfig[issue.priority].label}
+            {
+              (priorityConfig[normalizedPriority] ?? priorityConfig.medium)
+                .label
+            }
           </Badge>
         </div>
 
@@ -213,14 +226,19 @@ export function IssueCard({ issue, onClick }: IssueCardProps) {
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <span className="text-lg">
-              {categoryIcons[issue.category] || categoryIcons.other}
+              {categoryIcons[normalizedCategory] || categoryIcons.other}
             </span>
             <span className="text-sm font-medium text-muted-foreground capitalize">
-              {issue.category}
+              {normalizedCategory}
             </span>
           </div>
-          <Badge className={cn("text-xs", statusConfig[issue.status].class)}>
-            {statusConfig[issue.status].label}
+          <Badge
+            className={cn(
+              "text-xs",
+              (statusConfig[normalizedStatus] ?? statusConfig.pending).class,
+            )}
+          >
+            {(statusConfig[normalizedStatus] ?? statusConfig.pending).label}
           </Badge>
         </div>
 
@@ -233,13 +251,13 @@ export function IssueCard({ issue, onClick }: IssueCardProps) {
                 variant="outline"
                 className={cn(
                   "text-[10px] font-semibold border",
-                  slaConfig[issue.slaStatus]?.class
+                  slaConfig[issue.slaStatus]?.class,
                 )}
               >
                 <Clock className="w-3 h-3 mr-1" />
                 {issue.daysRemaining !== undefined && issue.daysRemaining <= 0
                   ? `Overdue by ${Math.abs(
-                      Math.ceil(issue.daysRemaining)
+                      Math.ceil(issue.daysRemaining),
                     )} days`
                   : `${Math.ceil(issue.daysRemaining || 0)} days left`}
               </Badge>
