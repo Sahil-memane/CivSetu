@@ -4,6 +4,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { X, FileText, Settings, CheckCircle } from "lucide-react";
 import { MediaCarousel } from "@/components/common/MediaCarousel";
+import { getMediaType } from "@/lib/mediaUtils";
 
 interface DetailViewerModalProps {
   isOpen: boolean;
@@ -26,9 +27,9 @@ export function DetailViewerModal({
   type,
   data,
 }: DetailViewerModalProps) {
-  // Normalize proofs to MediaItems
+  // Normalize proofs to MediaItems using robust type detection
   const mediaItems = data.proofs.map((url) => ({
-    type: "image" as const, // We'll let MediaCarousel detect if it's doc/pdf
+    type: getMediaType(url),
     url,
   }));
 

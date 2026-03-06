@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { isImage, isVoice, isPdf, isDoc, normalizeUrl } from "@/lib/mediaUtils";
 
 export interface Issue {
   id: string;
@@ -119,19 +120,28 @@ export function IssueCard({ issue, onClick }: IssueCardProps) {
   const voice = issue.files?.voice;
   const documents = issue.files?.documents || [];
 
-  // Helper to detect media types
-  const hasVoice = !!voice;
-  const hasImages = images.some((url: string) =>
-    /\.(jpg|jpeg|png|webp|gif)(\?.*)?$/i.test(url),
-  );
-  const hasDocs = documents.some((url: string) =>
-    /\.(pdf|doc|docx|txt)(\?.*)?$/i.test(url),
-  );
+  // Gather ALL proofs from official responses
+  const officialProofs = [
+    ...(issue.resolutionProofs || []),
+    ...(issue.planningDocs || []),
+    ...(issue.rejectionProofs || []),
+  ];
 
-  // Determine main preview
-  const previewImage = images.find((url: string) =>
-    /\.(jpg|jpeg|png|webp|gif)(\?.*)?$/i.test(url),
-  );
+  // Helper to detect media types across both report and official responses
+  const hasVoice = !!voice || officialProofs.some(isVoice);
+
+  const allImages = [...images, ...officialProofs.filter(isImage)];
+
+  const allDocs = [
+    ...documents,
+    ...officialProofs.filter((url) => isPdf(url) || isDoc(url)),
+  ];
+
+  const hasImages = allImages.length > 0;
+  const hasDocs = allDocs.length > 0;
+
+  // Determine main preview - prioritize original report images, then official proofs
+  const previewImage = allImages[0];
 
   const agreeCount = issue.agrees?.length || 0;
   const disagreeCount = issue.disagrees?.length || 0;
@@ -146,7 +156,7 @@ export function IssueCard({ issue, onClick }: IssueCardProps) {
       <div className="aspect-video w-full bg-muted relative overflow-hidden flex-shrink-0">
         {previewImage ? (
           <img
-            src={previewImage}
+            src={normalizeUrl(previewImage)}
             alt={issue.title}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />
@@ -195,10 +205,10 @@ export function IssueCard({ issue, onClick }: IssueCardProps) {
 
         {/* Media Type Indicators (Bottom Right of Image) */}
         <div className="absolute bottom-3 right-3 flex gap-1.5 pointer-events-none">
-          {images.length > 1 && (
+          {allImages.length > 1 && (
             <div className="px-2 h-6 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center gap-1 text-white text-[10px] font-medium">
               <Image className="w-3.5 h-3.5" />
-              <span>{images.length}</span>
+              <span>{allImages.length}</span>
             </div>
           )}
           {hasVoice && (
@@ -215,7 +225,7 @@ export function IssueCard({ issue, onClick }: IssueCardProps) {
               title="Documents"
             >
               <FileText className="w-3.5 h-3.5" />
-              <span>{documents.length || 1}</span>
+              <span>{allDocs.length}</span>
             </div>
           )}
         </div>

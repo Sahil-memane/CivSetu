@@ -14,6 +14,7 @@ const authRoutes = require("./routes/authRoutes");
 const issueRoutes = require("./routes/issueRoutes");
 const surveyRoutes = require("./routes/surveyRoutes");
 const apkRoutes = require("./routes/apkRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
 
 // Middleware
 app.use(cors());
@@ -28,6 +29,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/issues", issueRoutes);
 app.use("/api/surveys", surveyRoutes);
 app.use("/api/apk", apkRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", message: "Backend is healthy" });

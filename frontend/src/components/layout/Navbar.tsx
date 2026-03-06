@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { formatDistanceToNow } from "date-fns";
 import { GoogleTranslate } from "@/components/common/GoogleTranslate";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -42,7 +43,7 @@ const navLinks = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
 ];
 
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
 import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
 
 export function Navbar() {
@@ -66,7 +67,7 @@ export function Navbar() {
       // Temporarily removed orderBy to rule out index issues.
       // If this works, we will add it back and create the index.
       const q = query(
-        collection(db, "users", userId, "notifications")
+        collection(db, "users", userId, "notifications"),
         // orderBy("createdAt", "desc")
       );
 
@@ -74,38 +75,127 @@ export function Navbar() {
         q,
         (snapshot) => {
           console.log(
-            "🔔 Snapshot received. Docs count:",
-            snapshot.docs.length
+            "🔔 [Navbar] Real-time snapshot received. Count:",
+            snapshot.docs.length,
           );
-          const notifs = snapshot.docs.map((doc) => {
-            const data = doc.data();
-            console.log("   - Notif:", doc.id, data);
-            return {
-              id: doc.id,
-              ...data,
-            };
-          });
+          const notifs = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }));
 
-          // Manually sort in client-side to avoid index error for now
-          notifs.sort((a: any, b: any) => {
-            return (
-              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          setNotifications((prev) => {
+            // Robust deduplication based on ID
+            const newIds = new Set(notifs.map((n) => n.id));
+            const existingFiltered = prev.filter((n) => !newIds.has(n.id));
+            const merged = [...notifs, ...existingFiltered];
+
+            return merged.sort(
+              (a: any, b: any) =>
+                new Date(b.createdAt).getTime() -
+                new Date(a.createdAt).getTime(),
             );
           });
-
-          setNotifications(notifs);
         },
         (error) => {
-          console.error("❌ Error fetching notifications:", error);
-          setErrorMsg(error.message);
-        }
+          console.error("❌ [Navbar] Firestore listener error:", error);
+          setErrorMsg(`Live sync error: ${error.message}`);
+        },
       );
+
+      // FALLBACK: Fetch via Backend API immediately
+      const fetchInitialNotifs = async () => {
+        try {
+          console.log("📡 [Navbar] Fetching initial notifications via API...");
+          const token =
+            (await (user as any).getIdToken?.()) ||
+            (await auth.currentUser?.getIdToken());
+          if (!token) return;
+
+          const res = await fetch("/api/notifications", {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            console.log(
+              "✅ [Navbar] API notifications received:",
+              data.notifications.length,
+            );
+            setNotifications(data.notifications);
+          }
+        } catch (err) {
+          console.error("❌ [Navbar] Fallback fetch failed:", err);
+        }
+      };
+
+      fetchInitialNotifs();
 
       return () => unsubscribe();
     } catch (err) {
-      console.error("❌ Error creating query:", err);
+      console.error("❌ [Navbar] Error creating query:", err);
     }
   }, [user]);
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      if (!user) return;
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+      const token = await currentUser.getIdToken();
+
+      const res = await fetch("/api/notifications/read-all", {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.ok) {
+        setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      }
+    } catch (err) {
+      console.error("Failed to mark all as read:", err);
+    }
+  };
+
+  const handleMarkAsRead = async (id: string) => {
+    try {
+      if (!user) return;
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+      const token = await currentUser.getIdToken();
+
+      const res = await fetch(`/api/notifications/${id}/read`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.ok) {
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
+        );
+      }
+    } catch (err) {
+      console.error("Failed to mark notification as read:", err);
+    }
+  };
+
+  const handleTriggerTest = async () => {
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+      const token = await currentUser.getIdToken();
+      await fetch("/api/notifications/test", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch (err) {
+      console.error("Failed to trigger test:", err);
+    }
+  };
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   useEffect(() => {
     // Monitor Google Translate banner adding 'top' to body
@@ -157,7 +247,7 @@ export function Navbar() {
                 "px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
                 location.pathname === "/"
                   ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted",
               )}
             >
               Home
@@ -171,7 +261,7 @@ export function Navbar() {
                     "px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
                     location.pathname === "/map"
                       ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted",
                   )}
                 >
                   Issue Map
@@ -184,7 +274,7 @@ export function Navbar() {
                       "px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
                       location.pathname === "/report"
                         ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted",
                     )}
                   >
                     Report Issue
@@ -200,7 +290,7 @@ export function Navbar() {
                   "px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
                   location.pathname === "/dashboard"
                     ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted",
                 )}
               >
                 Dashboard
@@ -214,7 +304,7 @@ export function Navbar() {
                   "px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
                   location.pathname === "/admin"
                     ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted",
                 )}
               >
                 Admin Dashboard
@@ -304,15 +394,41 @@ export function Navbar() {
                       className="relative text-muted-foreground hover:text-foreground"
                     >
                       <Bell className="w-5 h-5" />
-                      <span className="absolute top-2 right-2 w-2 h-2 bg-destructive rounded-full border-2 border-card"></span>
+                      {unreadCount > 0 && (
+                        <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center bg-destructive text-[10px] font-bold text-white rounded-full border-2 border-card px-1 animate-in zoom-in">
+                          {unreadCount > 9 ? "9+" : unreadCount}
+                        </span>
+                      )}
                     </Button>
                   </SheetTrigger>
                   <SheetContent>
-                    <SheetHeader>
-                      <SheetTitle>Notifications</SheetTitle>
-                      <SheetDescription>
-                        Real-time alerts and system updates.
-                      </SheetDescription>
+                    <SheetHeader className="flex flex-row items-center justify-between space-y-0">
+                      <div>
+                        <SheetTitle>Notifications</SheetTitle>
+                        <SheetDescription>
+                          Real-time alerts and system updates.
+                        </SheetDescription>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 text-[10px] opacity-20 hover:opacity-100"
+                          onClick={handleTriggerTest}
+                        >
+                          Test
+                        </Button>
+                        {unreadCount > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-xs text-primary h-8 hover:bg-primary/10"
+                            onClick={handleMarkAllAsRead}
+                          >
+                            Mark all read
+                          </Button>
+                        )}
+                      </div>
                     </SheetHeader>
                     <div className="mt-6 space-y-4 h-full max-h-[calc(100vh-140px)] overflow-y-auto pr-2">
                       {notifications.length === 0 ? (
@@ -324,15 +440,23 @@ export function Navbar() {
                         notifications.map((notif: any) => (
                           <div
                             key={notif.id}
+                            onClick={() =>
+                              !notif.read && handleMarkAsRead(notif.id)
+                            }
                             className={cn(
-                              "p-4 rounded-xl border relative overflow-hidden transition-all",
+                              "p-4 rounded-xl border relative overflow-hidden transition-all cursor-pointer",
                               notif.type === "SLA_BREACH"
                                 ? "bg-destructive/5 border-destructive/20"
-                                : "bg-muted/30 border-border/50"
+                                : notif.read
+                                  ? "bg-card border-border/50 opacity-80"
+                                  : "bg-primary/5 border-primary/20",
                             )}
                           >
-                            {/* ... Content ... */}
-                            <div className="absolute top-0 right-0 p-2 opacity-10">
+                            {!notif.read && (
+                              <div className="absolute top-3 right-3 w-1.5 h-1.5 bg-primary rounded-full" />
+                            )}
+
+                            <div className="absolute top-0 right-0 p-2 opacity-5">
                               {notif.type === "SLA_BREACH" ? (
                                 <AlertTriangle className="w-16 h-16 text-destructive" />
                               ) : (
@@ -344,7 +468,7 @@ export function Navbar() {
                               {notif.type === "SLA_BREACH" ? (
                                 <AlertTriangle className="w-4 h-4 text-destructive" />
                               ) : notif.type === "RESOLUTION" ? (
-                                <CheckCircle2 className="w-4 h-4 text-success" />
+                                <CheckCircle2 className="w-4 h-4 text-green-500" />
                               ) : notif.type === "STATUS_CHANGE" ? (
                                 <div className="p-1 bg-blue-100 rounded-full">
                                   <Bell className="w-3 h-3 text-blue-600" />
@@ -356,22 +480,28 @@ export function Navbar() {
                               ) : (
                                 <Bell className="w-4 h-4 text-primary" />
                               )}
-                              <span
-                                className={cn(
-                                  "font-semibold text-sm",
-                                  "text-foreground"
-                                )}
-                              >
+                              <span className="font-semibold text-sm">
                                 {notif.title}
                               </span>
                             </div>
 
-                            <p className="text-sm text-muted-foreground relative z-10">
+                            <p className="text-sm text-muted-foreground relative z-10 mb-2">
                               {notif.body}
                             </p>
-                            <p className="text-[10px] text-muted-foreground/50 mt-2 text-right">
-                              {new Date(notif.createdAt).toLocaleTimeString()}
-                            </p>
+
+                            <div className="flex items-center justify-between relative z-10">
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase tracking-wider font-bold">
+                                {notif.type?.replace("_", " ") || "SYSTEM"}
+                              </span>
+                              <p className="text-[10px] text-muted-foreground/60 italic font-medium">
+                                {formatDistanceToNow(
+                                  new Date(notif.createdAt),
+                                  {
+                                    addSuffix: true,
+                                  },
+                                )}
+                              </p>
+                            </div>
                           </div>
                         ))
                       )}

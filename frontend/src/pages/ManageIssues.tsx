@@ -196,22 +196,19 @@ const ManageIssues = () => {
     const updatedIssues = allDepartmentIssues.map((i) =>
       i.id === planningIssue.id
         ? { ...i, status: "in-progress", ...updates }
-        : i
+        : i,
     );
     setAllDepartmentIssues(updatedIssues);
 
     try {
       const token = await auth.currentUser?.getIdToken();
-      const response = await fetch(
-        `/api/issues/${planningIssue.id}/status`,
-        {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: formData,
-        }
-      );
+      const response = await fetch(`/api/issues/${planningIssue.id}/status`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
 
       if (!response.ok) {
         throw new Error("Failed to plan issue");
@@ -238,22 +235,19 @@ const ManageIssues = () => {
     const previousIssues = [...allDepartmentIssues];
     // Optimistic Update
     const updatedIssues = allDepartmentIssues.map((i) =>
-      i.id === resolveIssue.id ? { ...i, status: "resolved" } : i
+      i.id === resolveIssue.id ? { ...i, status: "resolved" } : i,
     );
     setAllDepartmentIssues(updatedIssues);
 
     try {
       const token = await auth.currentUser?.getIdToken();
-      const response = await fetch(
-        `/api/issues/${resolveIssue.id}/resolve`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: formData,
-        }
-      );
+      const response = await fetch(`/api/issues/${resolveIssue.id}/resolve`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
 
       if (!response.ok) {
         throw new Error("Failed to resolve on backend");
@@ -269,7 +263,8 @@ const ManageIssues = () => {
       setAllDepartmentIssues(previousIssues);
       toast({
         title: "Error",
-        description: "Failed to resolve issue. Please check your connection or try again.",
+        description:
+          "Failed to resolve issue. Please check your connection or try again.",
         variant: "destructive",
       });
     }
@@ -281,22 +276,19 @@ const ManageIssues = () => {
     const previousIssues = [...allDepartmentIssues];
 
     const updatedList = allDepartmentIssues.map((i) =>
-      i.id === rejectIssue.id ? { ...i, status: "rejected" } : i
+      i.id === rejectIssue.id ? { ...i, status: "rejected" } : i,
     );
     setAllDepartmentIssues(updatedList);
 
     try {
       const token = await auth.currentUser?.getIdToken();
-      const response = await fetch(
-        `/api/issues/${rejectIssue.id}/reject`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: formData,
-        }
-      );
+      const response = await fetch(`/api/issues/${rejectIssue.id}/reject`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
 
       if (!response.ok) {
         throw new Error("Failed to reject issue");
@@ -318,11 +310,108 @@ const ManageIssues = () => {
   };
 
   // Reuse engagement logic (simplified)
-  const handleEngage = (id: string, action: string) => {
-    console.log("Engage", id, action);
+  const handleEngage = async (id: string, action: "agree" | "disagree") => {
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+      const token = await currentUser.getIdToken();
+
+      await fetch(`/api/issues/${id}/engage`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ action }),
+      });
+
+      // Optimistic update
+      setAllDepartmentIssues((prev) =>
+        prev.map((issue) => {
+          if (issue.id === id) {
+            const uid = currentUser.uid;
+            let newAgrees = issue.agrees || [];
+            let newDisagrees = issue.disagrees || [];
+
+            if (action === "agree") {
+              if (newAgrees.includes(uid))
+                newAgrees = newAgrees.filter((u: string) => u !== uid);
+              else {
+                newAgrees = [...newAgrees, uid];
+                newDisagrees = newDisagrees.filter((u: string) => u !== uid);
+              }
+            } else {
+              if (newDisagrees.includes(uid))
+                newDisagrees = newDisagrees.filter((u: string) => u !== uid);
+              else {
+                newDisagrees = [...newDisagrees, uid];
+                newAgrees = newAgrees.filter((u: string) => u !== uid);
+              }
+            }
+            const updated = {
+              ...issue,
+              agrees: newAgrees,
+              disagrees: newDisagrees,
+            };
+            if (detailsIssue?.id === id) setDetailsIssue(updated);
+            return updated;
+          }
+          return issue;
+        }),
+      );
+    } catch (err) {
+      console.error("Engagement failed", err);
+      toast({
+        title: "Error",
+        description: "Engagement failed",
+        variant: "destructive",
+      });
+    }
   };
-  const handleComment = (id: string, text: string) => {
-    console.log("Comment", id, text);
+
+  const handleComment = async (id: string, text: string) => {
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+      const token = await currentUser.getIdToken();
+
+      const res = await fetch(`/api/issues/${id}/comment`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ text }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setAllDepartmentIssues((prev) =>
+          prev.map((issue) => {
+            if (issue.id === id) {
+              const updated = {
+                ...issue,
+                comments: [...(issue.comments || []), data.comment],
+              };
+              if (detailsIssue?.id === id) setDetailsIssue(updated);
+              return updated;
+            }
+            return issue;
+          }),
+        );
+        toast({
+          title: "Comment Added",
+          description: "Your comment has been posted",
+        });
+      }
+    } catch (err) {
+      console.error("Comment failed", err);
+      toast({
+        title: "Error",
+        description: "Failed to post comment",
+        variant: "destructive",
+      });
+    }
   };
 
   const formatDate = (isoDate: string) => {
@@ -362,7 +451,7 @@ const ManageIssues = () => {
                     "w-full flex items-center gap-4 px-5 py-3.5 rounded-xl text-base font-medium transition-all group",
                     isActive
                       ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
                   )}
                 >
                   <item.icon
@@ -370,7 +459,7 @@ const ManageIssues = () => {
                       "w-6 h-6",
                       isActive
                         ? "text-primary"
-                        : "text-muted-foreground group-hover:text-foreground"
+                        : "text-muted-foreground group-hover:text-foreground",
                     )}
                   />
                   {item.label}
@@ -416,7 +505,7 @@ const ManageIssues = () => {
                     "px-4 py-1.5 text-sm font-medium rounded-md transition-all",
                     activeTab === "pending"
                       ? "bg-background shadow-sm text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
+                      : "text-muted-foreground hover:text-foreground",
                   )}
                 >
                   Pending
@@ -427,7 +516,7 @@ const ManageIssues = () => {
                     "px-4 py-1.5 text-sm font-medium rounded-md transition-all",
                     activeTab === "in-progress"
                       ? "bg-background shadow-sm text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
+                      : "text-muted-foreground hover:text-foreground",
                   )}
                 >
                   In Progress
@@ -438,7 +527,7 @@ const ManageIssues = () => {
                     "px-4 py-1.5 text-sm font-medium rounded-md transition-all",
                     activeTab === "resolved"
                       ? "bg-background shadow-sm text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
+                      : "text-muted-foreground hover:text-foreground",
                   )}
                 >
                   Resolved
@@ -517,7 +606,7 @@ const ManageIssues = () => {
                             className={cn(
                               "text-xs border border-transparent font-medium capitalize",
                               statusConfig[issue.status]?.class ||
-                              "bg-secondary"
+                                "bg-secondary",
                             )}
                           >
                             {issue.status}
@@ -530,7 +619,7 @@ const ManageIssues = () => {
                               variant="outline"
                               className={cn(
                                 "text-xs font-medium capitalize w-fit",
-                                priorityConfig[issue.priority]?.class || ""
+                                priorityConfig[issue.priority]?.class || "",
                               )}
                             >
                               {issue.priority}
@@ -538,27 +627,44 @@ const ManageIssues = () => {
                             {/* Escalation Indicator */}
                             {issue.adminEscalatedPriority &&
                               (() => {
-                                const pMap: Record<string, number> = { low: 1, medium: 2, high: 3, critical: 4 };
-                                const current = pMap[issue.priority?.toLowerCase()] || 0;
-                                const escalated = pMap[issue.adminEscalatedPriority?.toLowerCase()] || 0;
+                                const pMap: Record<string, number> = {
+                                  low: 1,
+                                  medium: 2,
+                                  high: 3,
+                                  critical: 4,
+                                };
+                                const current =
+                                  pMap[issue.priority?.toLowerCase()] || 0;
+                                const escalated =
+                                  pMap[
+                                    issue.adminEscalatedPriority?.toLowerCase()
+                                  ] || 0;
                                 return current > 0 && escalated > current;
                               })() &&
                               issue.status !== "resolved" &&
                               issue.status !== "rejected" && (
                                 <span className="text-[10px] text-red-500 font-bold flex items-center gap-0.5 mt-0.5">
-                                  Escalated to {issue.adminEscalatedPriority.toLowerCase()}
+                                  Escalated to{" "}
+                                  {issue.adminEscalatedPriority.toLowerCase()}
                                 </span>
                               )}
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          {issue.status !== "resolved" && issue.status !== "rejected" && issue.daysRemaining !== undefined ? (
+                          {issue.status !== "resolved" &&
+                          issue.status !== "rejected" &&
+                          issue.daysRemaining !== undefined ? (
                             <div className="flex flex-col">
-                              <span className={cn(
-                                "font-bold text-sm",
-                                issue.daysRemaining <= 0 ? "text-red-600" :
-                                  issue.daysRemaining <= 2 ? "text-yellow-600" : "text-green-600"
-                              )}>
+                              <span
+                                className={cn(
+                                  "font-bold text-sm",
+                                  issue.daysRemaining <= 0
+                                    ? "text-red-600"
+                                    : issue.daysRemaining <= 2
+                                      ? "text-yellow-600"
+                                      : "text-green-600",
+                                )}
+                              >
                                 {Math.ceil(issue.daysRemaining)} days
                               </span>
                               <span className="text-[10px] text-muted-foreground">
@@ -566,7 +672,9 @@ const ManageIssues = () => {
                               </span>
                             </div>
                           ) : (
-                            <span className="text-muted-foreground text-xs">-</span>
+                            <span className="text-muted-foreground text-xs">
+                              -
+                            </span>
                           )}
                         </td>
                         <td className="px-6 py-4 text-right">
@@ -646,7 +754,7 @@ const ManageIssues = () => {
         onClose={() => setResolveIssue(null)}
         onResolve={handleResolveConfirm}
       />
-    </div >
+    </div>
   );
 };
 

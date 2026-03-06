@@ -25,6 +25,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { SurveyCreationForm } from "@/components/surveys/SurveyCreationForm";
+import { IssueDetailModal } from "@/components/issues/IssueDetailModal";
 
 const AdminMapView = () => {
   const { user } = useAuth();
@@ -37,6 +38,7 @@ const AdminMapView = () => {
   const [viewResponseSurvey, setViewResponseSurvey] = useState<any>(null);
   const [surveyResponses, setSurveyResponses] = useState<any[]>([]);
   const [loadingResponses, setLoadingResponses] = useState(false);
+  const [detailsIssue, setDetailsIssue] = useState<Issue | null>(null);
 
   const fetchSurveys = async () => {
     const toastId = toast.loading("Refreshing surveys...");
@@ -98,7 +100,7 @@ const AdminMapView = () => {
         if (!data.surveys || data.surveys.length === 0) {
           console.warn("Debug Info:", data.debug);
           toast.warning(
-            `0 surveys. DB found: ${data.debug?.snapshotSize ?? "?"} items.`
+            `0 surveys. DB found: ${data.debug?.snapshotSize ?? "?"} items.`,
           );
         } else {
           toast.success(`Found ${data.surveys.length} surveys.`);
@@ -183,7 +185,7 @@ const AdminMapView = () => {
                 typeof i.coordinates.lng === "number" &&
                 i.category &&
                 i.category.trim() !== "" && // Must have category
-                i.title !== "Civic Issue Reported" // Filter out default/incomplete titles
+                i.title !== "Civic Issue Reported", // Filter out default/incomplete titles
             );
 
           setIssues(validIssues);
@@ -228,6 +230,99 @@ const AdminMapView = () => {
     setSelectedCluster(null);
   };
 
+  const handleEngage = async (id: string, action: "agree" | "disagree") => {
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+      const token = await currentUser.getIdToken();
+
+      await fetch(`/api/issues/${id}/engage`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ action }),
+      });
+
+      // Optimistic update
+      setIssues((prev) =>
+        prev.map((issue) => {
+          if (issue.id === id) {
+            const uid = currentUser.uid;
+            let newAgrees = issue.agrees || [];
+            let newDisagrees = issue.disagrees || [];
+
+            if (action === "agree") {
+              if (newAgrees.includes(uid))
+                newAgrees = newAgrees.filter((u: string) => u !== uid);
+              else {
+                newAgrees = [...newAgrees, uid];
+                newDisagrees = newDisagrees.filter((u: string) => u !== uid);
+              }
+            } else {
+              if (newDisagrees.includes(uid))
+                newDisagrees = newDisagrees.filter((u: string) => u !== uid);
+              else {
+                newDisagrees = [...newDisagrees, uid];
+                newAgrees = newAgrees.filter((u: string) => u !== uid);
+              }
+            }
+            const updated = {
+              ...issue,
+              agrees: newAgrees,
+              disagrees: newDisagrees,
+            };
+            if (detailsIssue?.id === id) setDetailsIssue(updated);
+            return updated;
+          }
+          return issue;
+        }),
+      );
+    } catch (err) {
+      console.error("Engagement failed", err);
+      toast.error("Engagement failed");
+    }
+  };
+
+  const handleComment = async (id: string, text: string) => {
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+      const token = await currentUser.getIdToken();
+
+      const res = await fetch(`/api/issues/${id}/comment`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ text }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setIssues((prev) =>
+          prev.map((issue) => {
+            if (issue.id === id) {
+              const updated = {
+                ...issue,
+                comments: [...(issue.comments || []), data.comment],
+              };
+              if (detailsIssue?.id === id) setDetailsIssue(updated);
+              return updated;
+            }
+            return issue;
+          }),
+        );
+        toast.success("Comment added");
+      }
+    } catch (err) {
+      console.error("Comment failed", err);
+      toast.error("Failed to post comment");
+    }
+  };
+
   const sidebarItems = [
     { icon: LayoutDashboard, label: "Dashboard", href: "/admin" },
     { icon: MapPin, label: "Map View", href: "/admin/map", active: true },
@@ -266,7 +361,7 @@ const AdminMapView = () => {
                   "w-full flex items-center gap-4 px-5 py-3.5 rounded-xl text-base font-medium transition-all group",
                   item.active
                     ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
                 )}
               >
                 <item.icon
@@ -274,7 +369,7 @@ const AdminMapView = () => {
                     "w-6 h-6",
                     item.active
                       ? "text-primary"
-                      : "text-muted-foreground group-hover:text-foreground"
+                      : "text-muted-foreground group-hover:text-foreground",
                   )}
                 />
                 {item.label}
@@ -330,9 +425,7 @@ const AdminMapView = () => {
               ) : (
                 <CivicMap
                   issues={issues}
-                  onIssueSelect={(issue) =>
-                    console.log("Selected issue", issue)
-                  }
+                  onIssueSelect={(issue) => setDetailsIssue(issue)}
                   clusters={clusters}
                   onClusterSelect={handleClusterSelect}
                 />
@@ -487,7 +580,7 @@ const AdminMapView = () => {
                               : JSON.stringify(ans)}
                           </div>
                         </div>
-                      )
+                      ),
                     )}
                   </div>
                 </div>
@@ -499,6 +592,14 @@ const AdminMapView = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Issue Detail Modal */}
+      <IssueDetailModal
+        issue={detailsIssue}
+        isOpen={!!detailsIssue}
+        onClose={() => setDetailsIssue(null)}
+        onEngage={handleEngage}
+        onComment={handleComment}
+      />
     </div>
   );
 };

@@ -38,8 +38,16 @@ async function sendNotification(token, title, body, data = {}) {
  */
 async function saveNotificationToDb(uid, notificationData) {
   try {
-    if (!uid) return;
-    await db
+    if (!uid) {
+      console.warn("⚠️ Cannot save notification: No UID provided");
+      return;
+    }
+    console.log(
+      `📡 Attempting to save notification for ${uid}:`,
+      JSON.stringify(notificationData, null, 2),
+    );
+
+    const docRef = await db
       .collection("users")
       .doc(uid)
       .collection("notifications")
@@ -48,9 +56,12 @@ async function saveNotificationToDb(uid, notificationData) {
         read: false,
         createdAt: new Date().toISOString(),
       });
-    console.log(`✅ Saved persistent notification for ${uid}`);
+
+    console.log(
+      `✅ Saved persistent notification with ID: ${docRef.id} for user ${uid}`,
+    );
   } catch (error) {
-    console.error("❌ Error saving notification to DB:", error);
+    console.error(`❌ CRITICAL: Error saving notification for ${uid}:`, error);
   }
 }
 
@@ -97,7 +108,7 @@ async function notifyAdminOnBreach(issue, adminTokens) {
       issueId: issue.id,
       type: "SLA_BREACH",
       priority: issue.priority,
-    })
+    }),
   );
 
   await Promise.all(promises);
@@ -117,7 +128,7 @@ async function notifyAdminOnBreach(issue, adminTokens) {
           body,
           type: "SLA_BREACH",
           data: { issueId: issue.id, priority: issue.priority },
-        })
+        }),
       );
     });
     await Promise.all(savePromises);
